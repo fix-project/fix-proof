@@ -1,0 +1,363 @@
+theory eqqq
+  imports Main
+begin
+
+typedecl BlobHandle
+typedecl TreeHandle
+datatype ThunkHandle = HThunkHandle TreeHandle
+
+datatype handle = 
+HBlobHandle BlobHandle
+| HTreeHandle TreeHandle
+| HThunkHandle ThunkHandle
+
+typedecl raw
+type_synonym BlobData = "raw"
+type_synonym TreeData = "handle list"
+
+(* Fixpoint APIs *)
+
+consts 
+  get_blob_data :: "BlobHandle \<Rightarrow> BlobData"
+  get_tree_raw :: "TreeHandle \<Rightarrow> handle list"
+  get_thunk_tree :: "ThunkHandle \<Rightarrow> TreeHandle"
+
+  create_blob :: "BlobData \<Rightarrow> BlobHandle"
+  create_tree :: "TreeData \<Rightarrow> TreeHandle"
+  create_thunk :: "TreeHandle \<Rightarrow> ThunkHandle"
+
+definition get_tree_data :: "TreeHandle \<Rightarrow> nat \<Rightarrow> handle" where
+  "get_tree_data t i \<equiv> (get_tree_raw t) ! i"
+
+definition get_tree_size :: "TreeHandle \<Rightarrow> nat" where
+  "get_tree_size t \<equiv> length (get_tree_raw t)"
+
+(* User Program *)
+
+datatype op =
+     OGetBlobData nat
+   | OGetTreeData nat nat
+   | OCreateBlob nat
+   | OCreateTree "nat list"
+   | OCreateThunk nat
+   | ORunInternal
+   | OReturn nat
+
+record state =
+  hs :: "handle list"
+  ds :: "raw list"
+
+type_synonym userprog = "op list"
+
+consts get_prog :: "TreeHandle \<Rightarrow> userprog"
+
+(* User program state helper *)
+
+definition hpush :: "state \<Rightarrow> handle \<Rightarrow> state" where
+  "hpush s h \<equiv> s \<lparr>hs := h # hs s\<rparr>"
+
+definition dpush :: "state \<Rightarrow> raw \<Rightarrow> state" where
+  "dpush s d \<equiv> s \<lparr>ds := d # ds s\<rparr>"
+
+(* Deterministic internal procedure: operates on the 
+ * list of available data *)
+
+consts internal :: "raw list \<Rightarrow> raw list"
+definition run_internal :: "state \<Rightarrow> state" where
+  "run_internal s \<equiv> s \<lparr>ds := internal (ds s)\<rparr>"
+
+lemma run_internal_hs[simp]: "hs (run_internal s) = hs s"
+  by (simp add: run_internal_def)
+
+lemma run_internal_ds_equiv:
+  assumes "ds s1 = ds s2"
+  shows "ds (run_internal s1) = ds (run_internal s2)"
+  using assms by (simp add: run_internal_def)
+
+(* Step semantics *)
+
+datatype step_result =
+  Continue state
+  | Return handle
+
+inductive step :: "op \<Rightarrow> state \<Rightarrow> step_result \<Rightarrow> bool"
+  where
+StepGetBlobData:
+    "i < length (hs s) \<Longrightarrow> hs s ! i = HBlobHandle b \<Longrightarrow>
+    step (OGetBlobData i) s (Continue (dpush s (get_blob_data b)))"
+
+| StepGetTreeData:
+    "i < length (hs s) \<Longrightarrow> 
+     hs s ! i = HTreeHandle t \<Longrightarrow>
+     j < get_tree_size t \<Longrightarrow>
+    step (OGetTreeData i j) s (Continue (hpush s (get_tree_data t j)))"
+
+| StepCreateBlob:
+    "i < length (ds s) \<Longrightarrow> 
+    step (OCreateBlob i) s (Continue (hpush s (HBlobHandle (create_blob (ds s ! i)))))"
+
+| StepCreateThunk:
+    "i < length (hs s) \<Longrightarrow> hs s ! i = HTreeHandle t \<Longrightarrow>
+    step (OCreateThunk i) s (Continue (hpush s (HThunkHandle (create_thunk t))))"
+
+| StepCreateTree:
+    "\<forall>i\<in>set is. i < length (hs s) \<Longrightarrow>
+     hlist = map (\<lambda>i. hs s ! i) is \<Longrightarrow>
+     step (OCreateTree is) s (Continue (hpush s (HTreeHandle (create_tree hlist) )))" 
+
+| StepReturn:
+    "i < length (hs s) \<Longrightarrow> r = hs s ! i \<Longrightarrow>
+    step (OReturn i) s (Return (hs s ! i))"
+
+| StepRunInternal:
+    "step ORunInternal s (Continue (run_internal s))"
+
+inductive exec :: "userprog \<Rightarrow> state \<Rightarrow> handle \<Rightarrow> bool"
+  where
+  ExecReturn:
+    "step i s (Return r) \<Longrightarrow> exec (i # xs) s r"
+| ExecStep:
+    "step i s (Continue s') \<Longrightarrow> exec xs s' r \<Longrightarrow> exec (i # xs) s r"
+
+(* Thunk evaluation *)
+
+definition state_init :: "ThunkHandle \<Rightarrow> state" where
+  "state_init thunk \<equiv> \<lparr> hs = [HTreeHandle (get_thunk_tree thunk)], ds = [] \<rparr>"
+
+definition apply_thunk :: "ThunkHandle \<Rightarrow> handle \<Rightarrow> bool" where
+  "apply_thunk th h \<equiv> exec (get_prog (get_thunk_tree th)) (state_init th) h" 
+
+fun is_thunk :: "handle \<Rightarrow> bool" where
+  "is_thunk (HThunkHandle _) = True"
+| "is_thunk _ = False"
+
+inductive evaluate_with_fuel :: "nat \<Rightarrow> handle \<Rightarrow> handle \<Rightarrow> bool" where
+  Done:
+    "\<not> is_thunk h \<Longrightarrow> evaluate_with_fuel n h h"
+| Step:
+    "h = HThunkHandle thunk \<Longrightarrow>
+     apply_thunk thunk h1 \<Longrightarrow>
+     evaluate_with_fuel n h1 h2 \<Longrightarrow>
+     evaluate_with_fuel (Suc n) h h2"
+
+definition evaluates_to :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
+  "evaluates_to h h1 \<equiv> (\<exists>fuel. evaluate_with_fuel fuel h h1 \<and> \<not> is_thunk h1)"
+
+(* Determinism *)
+
+lemma step_deterministic:
+  assumes "step op s o1" "step op s o2"
+  shows   "o1 = o2"
+  using assms
+proof (induction arbitrary: o2 rule: step.induct)
+  case (StepGetBlobData i s b)
+  from StepGetBlobData.prems(1) show ?case
+  by (cases rule: step.cases; auto simp: StepGetBlobData(2))
+next
+  case (StepGetTreeData i s b j)
+  from StepGetTreeData.prems(1) show ?case
+    by (cases rule: step.cases; auto simp: StepGetTreeData(2))
+next
+  case (StepCreateBlob i s)
+  from StepCreateBlob.prems(1) show ?case
+    by (cases rule: step.cases; auto)
+next
+  case (StepCreateThunk i s t)
+  from StepCreateThunk.prems(1) show ?case
+    by (cases rule: step.cases; auto simp: StepCreateThunk(2))
+next
+  case (StepCreateTree xs s hs)
+  from StepCreateTree.prems(1) show ?case
+    by (cases rule: step.cases; auto simp: StepCreateTree(2))
+next
+  case (StepReturn i s r)
+  from StepReturn.prems(1) show ?case
+    by (cases rule: step.cases; auto)
+next
+  case (StepRunInternal s)
+  from StepRunInternal.prems(1) show ?case
+    by (cases rule: step.cases; auto)
+qed
+
+lemma exec_deterministic:
+  assumes "exec p s o1" "exec p s o2"
+  shows   "o1 = o2"
+  using assms
+proof (induction arbitrary: o2 rule: exec.induct)
+  case (ExecReturn i s r1 xs)
+  then show ?case
+    by (cases rule: exec.cases[OF ExecReturn.prems(1)])
+       (auto dest: step_deterministic)
+next
+  case (ExecStep i s s' xs r)
+  have H1: "step i s (Continue s')" using ExecStep.hyps(1) by assumption
+  have H2: "exec xs s' r" using ExecStep.hyps(2) by assumption
+  have E2: "exec (i # xs) s o2" using ExecStep.prems by assumption
+
+  then show ?case
+  proof (cases rule: exec.cases[OF E2])
+    case (1 i s r xs)
+    have Hret2: "step i s (Return r)" using 1(4) .
+    have Hret1: "step i s (Continue s')" using 1(1) 1(2) H1 by simp
+    have "Continue s' = Return r" using step_deterministic[OF Hret1 Hret2] by simp
+    thus ?thesis by simp
+  next
+    case (2 ia sa s'a xsa ra)
+    have Hstep1: "step i s (Continue s'a)" using 2(1) 2(2) 2(4) by simp
+    have S: "s' = s'a" using step_deterministic[OF H1 Hstep1] by simp
+    have "exec xs s' o2" using 2(5) 2(1) 2(3) S by auto
+    thus ?thesis using ExecStep.IH by auto
+  qed
+qed
+
+lemma apply_thunk_deterministic:
+  assumes "apply_thunk th h1" "apply_thunk th h2"
+  shows   "h1 = h2"
+  using assms
+  unfolding apply_thunk_def
+  by (meson exec_deterministic)
+
+lemma evaluate_with_fuel_deterministic:
+  assumes A: "evaluate_with_fuel n h r1"
+      and B: "evaluate_with_fuel n h r2"
+  shows "r1 = r2"
+using A B
+proof (induction arbitrary: r2 rule: evaluate_with_fuel.induct)
+  case (Done h n)
+  then show ?case
+    by (cases rule: evaluate_with_fuel.cases[OF Done.prems]) auto
+next
+  case (Step h thunk h1 n h2)
+  then show ?case
+  proof (cases rule: evaluate_with_fuel.cases[OF Step.prems])
+    case (1 ha na)
+    have A: "\<not> is_thunk h" using 1(4) 1(2) by auto
+    have B: "is_thunk h" using local.Step(1) by auto
+    thus ?thesis using A B by auto
+  next
+    case (2 ha thunka h1a na h2a)
+    have "thunka = thunk" using 2(2) 2(4) Step.hyps(1) by auto
+    then have "apply_thunk thunk h1a" using 2(5) by auto
+    then have "h1a = h1" using Step.hyps(2) by (meson apply_thunk_deterministic)
+    then have "evaluate_with_fuel n h1 h2a" using 2(1) 2(6) by auto
+    thus ?thesis using Step.IH 2(3) by auto
+  qed
+qed
+
+lemma evaluate_with_fuel_pad:
+  assumes "evaluate_with_fuel f h nf" and "\<not> is_thunk nf"
+  shows "evaluate_with_fuel (f + k) h nf"
+  using assms
+  by (induction rule: evaluate_with_fuel.induct) (simp_all add: evaluate_with_fuel.intros)
+
+lemma evaluates_to_deterministic:
+  assumes "evaluates_to h h1" and "evaluates_to h h2"
+  shows "h1 = h2"
+  using assms
+proof -
+  obtain f1 where A: "evaluate_with_fuel f1 h h1" and NT1: "\<not> is_thunk h1"
+    using assms(1) unfolding evaluates_to_def by auto
+  obtain f2 where B: "evaluate_with_fuel f2 h h2" and NT2: "\<not> is_thunk h2"
+    using assms(2) unfolding evaluates_to_def by auto
+  let ?F = "max f1 f2"
+  let ?k1 = "?F - f1"
+  let ?k2 = "?F - f2"
+  have "evaluate_with_fuel (f1 + ?k1) h h1"
+    using evaluate_with_fuel_pad[OF A NT1] .
+  then have AA: "evaluate_with_fuel ?F h h1" by simp
+  have "evaluate_with_fuel (f2 + ?k2) h h2" 
+    using evaluate_with_fuel_pad[OF B NT2] .
+  then have BB: "evaluate_with_fuel ?F h h2" by simp
+  show ?thesis using evaluate_with_fuel_deterministic[OF AA BB] by auto
+qed
+
+(* Blob/Tree creation rules *)
+
+axiomatization where
+  get_blob_data_create_blob[simp]:
+    "get_blob_data (create_blob x) = x"
+and
+  get_tree_raw_create_tree[simp]:
+    "get_tree_raw (create_tree xs) = xs"
+and
+  get_thunk_tree_create_thunk[simp]:
+    "get_thunk_tree (create_thunk t) = t"
+
+(* Coupon rules *)
+
+inductive coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
+  Storage:
+    "get_blob_data h1 = get_blob_data h2 \<Longrightarrow> coupon_eq (HBlobHandle h1) (HBlobHandle h2)"
+| Tree:
+    "get_tree_size t1 = get_tree_size t2 \<Longrightarrow>
+     (\<forall> i < get_tree_size t1. coupon_eq (get_tree_data t1 i) (get_tree_data t2 i)) \<Longrightarrow>
+     coupon_eq (HTreeHandle t1) (HTreeHandle t2)"
+| ThunkByTree:
+    "coupon_eq (HTreeHandle (get_thunk_tree th1)) (HTreeHandle (get_thunk_tree th2)) \<Longrightarrow>
+     coupon_eq (HThunkHandle th1) (HThunkHandle th2)"
+| ThunkByEvaluate:
+    "evaluates_to (HThunkHandle th1) h \<Longrightarrow>
+     evaluates_to (HThunkHandle th2) h \<Longrightarrow>
+     coupon_eq (HThunkHandle th1) (HThunkHandle th2)"
+
+(* Semantic rules *)
+
+inductive sem_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
+ SemBlob:
+  "(get_blob_data b1 = get_blob_data b2) \<Longrightarrow> sem_eq (HBlobHandle b1) (HBlobHandle b2)"
+| SemTree:
+  "get_tree_size t1 = get_tree_size t2 \<Longrightarrow>
+   (\<forall>i < get_tree_size t1. sem_eq (get_tree_data t1 i) (get_tree_data t2 i)) \<Longrightarrow>
+   sem_eq (HTreeHandle t1) (HTreeHandle t2)"
+| SemThunk:
+  "(\<forall>r1 r2.
+     evaluates_to (HThunkHandle th1) r1 \<Longrightarrow>
+     evaluates_to (HThunkHandle th2) r2 \<Longrightarrow>
+     sem_eq r1 r2) \<Longrightarrow>
+   sem_eq (HThunkHandle th1) (HThunkHandle th2)"
+
+
+
+    
+     
+
+
+
+
+section "Useful lemmas"
+
+definition relate_opt :: "('a \<Rightarrow> 'b \<Rightarrow> bool) \<Rightarrow> 'a option \<Rightarrow> 'b option \<Rightarrow> bool" where
+  "relate_opt P x y \<equiv>
+     (case x of None \<Rightarrow> y = None 
+     | Some a \<Rightarrow> (\<exists>b. y = Some b \<and> P a b))"
+
+definition relate_state :: "(handle\<times>handle) set \<Rightarrow> state \<Rightarrow> state \<Rightarrow> bool" where
+  "relate_state R s1 s2 \<equiv>
+     list_all2 (\<lambda>h1 h2. (h1,h2) \<in> R) (hs s1) (hs s2) \<and> ds s1 = ds s2"
+
+lemma relate_state_append_d:
+  assumes "relate_state R u1 u2" and "d1 = d2"
+  shows "relate_state R (u1 \<lparr>ds := ds u1 @ [d1]\<rparr>) (u2 \<lparr>ds := ds u2 @ [d2]\<rparr>)"
+  using assms unfolding relate_state_def by auto
+
+lemma list_all2_append:
+  assumes "list_all2 P xs ys"
+      and "P x y"
+  shows   "list_all2 P (xs @ [x]) (ys @ [y])"
+using assms
+proof (induction arbitrary: x y rule: list_all2_induct)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a xs b ys)
+  then show ?case by simp
+qed
+
+lemma relate_ustate_append_h:
+  assumes "relate_state R u1 u2" and "(h1,h2) \<in> R"
+  shows "relate_state R (u1 \<lparr>hs := hs u1 @ [h1]\<rparr>) (u2 \<lparr>hs := hs u2 @ [h2]\<rparr>)"
+  using assms unfolding relate_state_def
+  by (auto simp: list_all2_append)
+
+
+
