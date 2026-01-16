@@ -101,9 +101,9 @@ StepGetBlobData:
     step (OCreateThunk i) s (Continue (hpush s (HThunkHandle (create_thunk t))))"
 
 | StepCreateTree:
-    "\<forall>i\<in>set is. i < length (hs s) \<Longrightarrow>
-     hlist = map (\<lambda>i. hs s ! i) is \<Longrightarrow>
-     step (OCreateTree is) s (Continue (hpush s (HTreeHandle (create_tree hlist) )))" 
+    "\<forall>i\<in>set xs. i < length (hs s) \<Longrightarrow>
+     hlist = map (\<lambda>i. hs s ! i) xs \<Longrightarrow>
+     step (OCreateTree xs) s (Continue (hpush s (HTreeHandle (create_tree hlist) )))" 
 
 | StepReturn:
     "i < length (hs s) \<Longrightarrow> r = hs s ! i \<Longrightarrow>
@@ -112,6 +112,40 @@ StepGetBlobData:
 | StepRunInternal:
     "step ORunInternal s (Continue (run_internal s))"
 
+fun step_fun :: "op \<Rightarrow> state \<Rightarrow> step_result option" where
+  "step_fun (OGetBlobData i) s = 
+      (if i < length (hs s) then
+         (case (hs s ! i) of
+          HBlobHandle b \<Rightarrow> Some (Continue (dpush s (get_blob_data b)))
+        | _ \<Rightarrow> None)
+       else None)"
+| "step_fun (OGetTreeData i j) s =
+      (if i < length (hs s) then
+         (case (hs s ! i) of
+          HTreeHandle t \<Rightarrow> (if (j < get_tree_size t) 
+                            then Some (Continue (hpush s (get_tree_data t j))) 
+                            else None)
+          | _ \<Rightarrow> None)
+       else None)"
+| "step_fun (OCreateBlob i) s =
+      (if i < length (ds s) then
+         Some (Continue (hpush s (HBlobHandle (create_blob (ds s ! i)))))
+       else None)"
+| "step_fun (OCreateThunk i) s =
+      (if i < length (hs s) then
+         case (hs s ! i) of
+         HTreeHandle t \<Rightarrow> Some (Continue (hpush s (HThunkHandle (create_thunk t))))
+         | _ \<Rightarrow> None
+       else None)"
+| "step_fun (OCreateTree xs) s =
+      (if (\<forall>i\<in>set xs. i < length (hs s)) then
+        (let hlist = map (\<lambda>i. hs s ! i) xs in
+         Some (Continue (hpush s (HTreeHandle (create_tree hlist)))))
+      else None)"
+| "step_fun (OReturn i) s =
+      (if i < length (hs s) then Some (Return (hs s ! i)) else None)"
+| "step_fun (ORunInternal) s = Some (Continue (run_internal s))"
+
 inductive exec :: "userprog \<Rightarrow> state \<Rightarrow> handle \<Rightarrow> bool"
   where
   ExecReturn:
@@ -119,13 +153,22 @@ inductive exec :: "userprog \<Rightarrow> state \<Rightarrow> handle \<Rightarro
 | ExecStep:
     "step i s (Continue s') \<Longrightarrow> exec xs s' r \<Longrightarrow> exec (i # xs) s r"
 
+fun exec_fun :: "userprog \<Rightarrow> state \<Rightarrow> handle option"
+  where
+  "exec_fun [] s = None"
+| "exec_fun (i # xs) s =
+   (case (step_fun i s) of
+   None \<Rightarrow> None
+   | Some (Return r) \<Rightarrow> Some r
+   | Some (Continue s') \<Rightarrow> exec_fun xs s')"
+
 (* Thunk evaluation *)
 
 definition state_init :: "ThunkHandle \<Rightarrow> state" where
   "state_init thunk \<equiv> \<lparr> hs = [HTreeHandle (get_thunk_tree thunk)], ds = [] \<rparr>"
 
-definition apply_thunk :: "ThunkHandle \<Rightarrow> handle \<Rightarrow> bool" where
-  "apply_thunk th h \<equiv> exec (get_prog (get_thunk_tree th)) (state_init th) h" 
+definition apply_thunk :: "ThunkHandle \<Rightarrow> handle option" where
+  "apply_thunk th \<equiv> exec_fun (get_prog (get_thunk_tree th)) (state_init th)" 
 
 fun is_thunk :: "handle \<Rightarrow> bool" where
   "is_thunk (HThunkHandle _) = True"
@@ -136,12 +179,24 @@ inductive evaluate_with_fuel :: "nat \<Rightarrow> handle \<Rightarrow> handle \
     "\<not> is_thunk h \<Longrightarrow> evaluate_with_fuel n h h"
 | Step:
     "h = HThunkHandle thunk \<Longrightarrow>
-     apply_thunk thunk h1 \<Longrightarrow>
+     Some h1 = apply_thunk thunk \<Longrightarrow>
      evaluate_with_fuel n h1 h2 \<Longrightarrow>
      evaluate_with_fuel (Suc n) h h2"
 
+fun evaluate_with_fuel_fun :: "nat \<Rightarrow> handle \<Rightarrow> handle option" where
+  "evaluate_with_fuel_fun n h =
+     (case h of
+        HThunkHandle th \<Rightarrow>
+          (case n of
+             0 \<Rightarrow> None
+           | Suc n' \<Rightarrow>
+               (case apply_thunk th of
+                  None \<Rightarrow> None
+                | Some h1 \<Rightarrow> evaluate_with_fuel_fun n' h1))
+       | _ \<Rightarrow> Some h)"
+
 definition evaluates_to :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
-  "evaluates_to h h1 \<equiv> (\<exists>fuel. evaluate_with_fuel fuel h h1 \<and> \<not> is_thunk h1)"
+  "evaluates_to h h1 \<equiv> (\<exists>fuel. evaluate_with_fuel_fun fuel h = Some h1 \<and> \<not> is_thunk h1)"
 
 (* Determinism *)
 
@@ -210,13 +265,6 @@ next
   qed
 qed
 
-lemma apply_thunk_deterministic:
-  assumes "apply_thunk th h1" "apply_thunk th h2"
-  shows   "h1 = h2"
-  using assms
-  unfolding apply_thunk_def
-  by (meson exec_deterministic)
-
 lemma evaluate_with_fuel_deterministic:
   assumes A: "evaluate_with_fuel n h r1"
       and B: "evaluate_with_fuel n h r2"
@@ -237,8 +285,9 @@ next
   next
     case (2 ha thunka h1a na h2a)
     have "thunka = thunk" using 2(2) 2(4) Step.hyps(1) by auto
-    then have "apply_thunk thunk h1a" using 2(5) by auto
-    then have "h1a = h1" using Step.hyps(2) by (meson apply_thunk_deterministic)
+    then have "apply_thunk thunka = apply_thunk thunk" by auto
+    then have "Some h1a = Some h1" using 2(5) Step.hyps(2) by simp
+    then have "h1a = h1" by simp
     then have "evaluate_with_fuel n h1 h2a" using 2(1) 2(6) by auto
     thus ?thesis using Step.IH 2(3) by auto
   qed
@@ -250,25 +299,55 @@ lemma evaluate_with_fuel_pad:
   using assms
   by (induction rule: evaluate_with_fuel.induct) (simp_all add: evaluate_with_fuel.intros)
 
-lemma evaluates_to_deterministic:
+lemma evaluate_with_fuel_fun_pad:
+  assumes "evaluate_with_fuel_fun f h = Some h1" and "\<not> is_thunk h1"
+  shows "evaluate_with_fuel_fun (f + k) h = Some h1"
+  using assms
+proof (induction f arbitrary: h)
+  case 0 then show ?case by (cases h) auto
+next
+  case (Suc f')
+  then show ?case 
+  proof (cases h) 
+    case (HBlobHandle b)
+    then have "evaluate_with_fuel_fun (Suc f') h = Some h" by simp_all
+    then have "h1 = h" using Suc.prems(1) by auto
+    then show ?thesis using HBlobHandle by auto
+  next
+    case (HTreeHandle t)
+    then have "evaluate_with_fuel_fun (Suc f') h = Some h" by simp_all
+    then have "h1 = h" using Suc.prems(1) by auto
+    then show ?thesis using HTreeHandle by auto
+  next
+    case (HThunkHandle th)
+    from Suc.prems(1) HThunkHandle obtain h2 where
+      A: "apply_thunk th = Some h2"
+      and B: "evaluate_with_fuel_fun f' h2 = Some h1" by (simp split: option.splits)
+
+    have "evaluate_with_fuel_fun (f' + k) h2 = Some h1" using B Suc.IH Suc.prems(2) by auto
+    then show ?thesis using HThunkHandle A by simp_all
+  qed
+qed
+
+theorem evaluates_to_deterministic:
   assumes "evaluates_to h h1" and "evaluates_to h h2"
   shows "h1 = h2"
   using assms
 proof -
-  obtain f1 where A: "evaluate_with_fuel f1 h h1" and NT1: "\<not> is_thunk h1"
+  obtain f1 where A: "evaluate_with_fuel_fun f1 h = Some h1" and NT1: "\<not> is_thunk h1"
     using assms(1) unfolding evaluates_to_def by auto
-  obtain f2 where B: "evaluate_with_fuel f2 h h2" and NT2: "\<not> is_thunk h2"
+  obtain f2 where B: "evaluate_with_fuel_fun f2 h = Some h2" and NT2: "\<not> is_thunk h2"
     using assms(2) unfolding evaluates_to_def by auto
   let ?F = "max f1 f2"
   let ?k1 = "?F - f1"
   let ?k2 = "?F - f2"
-  have "evaluate_with_fuel (f1 + ?k1) h h1"
-    using evaluate_with_fuel_pad[OF A NT1] .
-  then have AA: "evaluate_with_fuel ?F h h1" by simp
-  have "evaluate_with_fuel (f2 + ?k2) h h2" 
-    using evaluate_with_fuel_pad[OF B NT2] .
-  then have BB: "evaluate_with_fuel ?F h h2" by simp
-  show ?thesis using evaluate_with_fuel_deterministic[OF AA BB] by auto
+  have "evaluate_with_fuel_fun (f1 + ?k1) h = Some h1"
+    using evaluate_with_fuel_fun_pad[OF A NT1] .
+  then have AA: "evaluate_with_fuel_fun ?F h = Some h1" by simp
+  have "evaluate_with_fuel_fun (f2 + ?k2) h = Some h2" 
+    using evaluate_with_fuel_fun_pad[OF B NT2] .
+  then have BB: "evaluate_with_fuel_fun ?F h = Some h2" by simp
+  show ?thesis using AA BB by simp
 qed
 
 (* Blob/Tree creation rules *)
