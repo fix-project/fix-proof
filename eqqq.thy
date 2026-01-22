@@ -252,6 +252,13 @@ proof -
     unfolding force_def using ex the_eq by simp
 qed
 
+lemma force_deterministic:
+  assumes "force h = Some h1"
+      and "force h = Some h2"
+    shows "h1 = h2"
+  using force_some forces_to_deterministic assms(1) assms(2)
+  by auto
+
 (* Blob/Tree creation rules *)
 
 axiomatization where
@@ -284,27 +291,33 @@ coinductive eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
 | EqSelf:
    "eq h h"
 
+fun eq_opt :: "handle option \<Rightarrow> handle option \<Rightarrow> bool" where
+  "eq_opt None None = True"
+| "eq_opt (Some h1) (Some h2) = eq h1 h2"
+| "eq_opt _ _ = False"
+
+(*We call two program states equivalent if each handle in the handle lists are pair-wise eq
+ *and each data in the data lists is pair-wise equal*)
+definition eq_state :: "state \<Rightarrow> state \<Rightarrow> bool" where
+  "eq_state s1 s2 \<equiv>
+     list_all2 (\<lambda>h1 h2. eq h1 h2) (hs s1) (hs s2) \<and> ds s1 = ds s2"
+
+(*We call two step results equivalent if either they step to equivalent states or they returns
+ *eq handles*)
+definition eq_step_result :: "step_result option \<Rightarrow> step_result option \<Rightarrow> bool" where
+  "eq_step_result r1 r2 \<equiv> 
+   (case (r1, r2) of
+     (Some (Continue s1), Some (Continue s2)) \<Rightarrow> eq_state s1 s2
+   | (Some (Return r1), Some (Return r2)) \<Rightarrow> eq r1 r2
+   | (None, None) \<Rightarrow> True
+   | (_, _) \<Rightarrow> False)"
+
+(* TODO: remove this axiom with real get_prog definition *) 
 axiomatization where
   get_prog_eq:
     "eq (HTreeHandle t1) (HTreeHandle t2) \<Longrightarrow> get_prog t1 = get_prog t2"
 
-lemma eq_same_type:
-  assumes "eq h1 h2"
-  shows "get_type h1 = get_type h2"
-  using assms
-  by (cases rule: eq.cases) auto 
-
-(* eq preserved by thunk application *)
-
-(* 1. Useful lemmas and definitions *)
-definition relate_opt :: "('a \<Rightarrow> 'b \<Rightarrow> bool) \<Rightarrow> 'a option \<Rightarrow> 'b option \<Rightarrow> bool" where
-  "relate_opt P x y \<equiv>
-     (case x of None \<Rightarrow> y = None 
-     | Some a \<Rightarrow> (\<exists>b. y = Some b \<and> P a b))"
-
-definition eq_state :: "state \<Rightarrow> state \<Rightarrow> bool" where
-  "eq_state s1 s2 \<equiv>
-     list_all2 (\<lambda>h1 h2. eq h1 h2) (hs s1) (hs s2) \<and> ds s1 = ds s2"
+(* 1. Useful lemmas for operations on two states that are equivalent *)
 
 lemma list_all2_append:
   assumes "list_all2 P xs ys"
@@ -319,10 +332,48 @@ lemma eq_state_hpush:
   using assms unfolding eq_state_def hpush_def
   by (auto simp: list_all2_append)
 
+lemma eq_state_hpush_self:
+  assumes "eq_state s1 s2"
+  shows "eq_state (hpush s1 h) (hpush s2 h)"
+  using assms
+proof -
+  have "eq h h" by (rule eq.EqSelf)
+  then show ?thesis using eq_state_hpush assms by blast
+qed
+
 lemma eq_dpush:
   assumes "eq_state s1 s2" and "d1 = d2"
   shows "eq_state (dpush s1 d1) (dpush s2 d2)"
   using assms unfolding eq_state_def dpush_def by auto
+
+lemma eq_state_hs:
+  "eq_state s1 s2 \<Longrightarrow> list_all2 (\<lambda>h1 h2. eq h1 h2) (hs s1) (hs s2)"
+  by (simp add: eq_state_def)
+
+lemma eq_state_ds:
+  "eq_state s1 s2 \<Longrightarrow> (ds s1) = (ds s2)"
+  by (simp add: eq_state_def)
+
+lemma eq_state_hs_same_length:
+  assumes "eq_state s1 s2"
+  shows "length (hs s1) = length (hs s2)"
+  using eq_state_hs[OF assms]
+  by (simp add: list_all2_lengthD)
+
+lemma eq_state_hs_nth:
+  assumes "eq_state s1 s2" "i < length (hs s1)"
+  shows "eq ((hs s1) ! i) ((hs s2)! i) \<and> i < length (hs s2)"
+  using eq_state_hs[OF assms(1)] assms(2)
+  by (simp add: list_all2_conv_all_nth)
+
+(* 2. eq handles are of the same type, and if LHS is BlobHandle/TreeHandle/ThunkHandle, there
+exists a BlobHandle/TreeHandle/ThunkHandle for the RHS. *)
+
+theorem eq_same_type:
+  assumes "eq h1 h2"
+  shows "get_type h1 = get_type h2"
+  using assms
+  by (cases rule: eq.cases) auto 
 
 lemma eq_same_kind_blob:
   assumes "eq (HBlobHandle b1) h2"
@@ -360,36 +411,9 @@ lemma eq_not_thunk:
   using assms
   by (cases h1) auto
 
-lemma eq_state_hs:
-  "eq_state s1 s2 \<Longrightarrow> list_all2 (\<lambda>h1 h2. eq h1 h2) (hs s1) (hs s2)"
-  by (simp add: eq_state_def)
+(* 3. API functions respect eq *)
 
-lemma eq_state_ds:
-  "eq_state s1 s2 \<Longrightarrow> (ds s1) = (ds s2)"
-  by (simp add: eq_state_def)
-
-lemma eq_state_hs_same_length:
-  assumes "eq_state s1 s2"
-  shows "length (hs s1) = length (hs s2)"
-  using eq_state_hs[OF assms]
-  by (simp add: list_all2_lengthD)
-
-lemma eq_state_hs_nth:
-  assumes "eq_state s1 s2" "i < length (hs s1)"
-  shows "eq ((hs s1) ! i) ((hs s2)! i) \<and> i < length (hs s2)"
-  using eq_state_hs[OF assms(1)] assms(2)
-  by (simp add: list_all2_conv_all_nth)
-  
-definition eq_step_result :: "step_result option \<Rightarrow> step_result option \<Rightarrow> bool" where
-  "eq_step_result r1 r2 \<equiv> 
-   (case (r1, r2) of
-     (Some (Continue s1), Some (Continue s2)) \<Rightarrow> eq_state s1 s2
-   | (Some (Return r1), Some (Return r2)) \<Rightarrow> eq r1 r2
-   | (None, None) \<Rightarrow> True
-   | (_, _) \<Rightarrow> False)"
-
-(* 2. API functions respect sem_eq *)
-lemma get_blob_data_eq:
+theorem get_blob_data_eq:
   assumes "eq (HBlobHandle b1) (HBlobHandle b2)"
   shows "get_blob_data b1 = get_blob_data b2"
   using assms
@@ -412,13 +436,13 @@ next
     by (simp add: list_all2_refl eq_refl)
 qed
 
-lemma get_tree_size_eq:
+theorem get_tree_size_eq:
   assumes "eq (HTreeHandle t1) (HTreeHandle t2)"
   shows   "get_tree_size t1 = get_tree_size t2"
   using eq_tree_children[OF assms]
   by (simp add: get_tree_size_def list_all2_lengthD)
 
-lemma get_tree_data_eq:
+theorem get_tree_data_eq:
   assumes "eq (HTreeHandle t1) (HTreeHandle t2)" and "i < get_tree_size t1"
   shows "eq (get_tree_data t1 i) (get_tree_data t2 i)"
 proof -
@@ -430,7 +454,7 @@ proof -
   then show ?thesis by (simp add: get_tree_data_def[symmetric]) 
 qed
 
-lemma create_blob_eq:
+theorem create_blob_eq:
   assumes "d1 = d2"
   shows "eq (HBlobHandle (create_blob d1)) (HBlobHandle (create_blob d2))"
 proof -
@@ -439,7 +463,7 @@ proof -
   then show ?thesis by (rule eq.EqBlob) 
 qed
 
-lemma create_tree_eq:
+theorem create_tree_eq:
   assumes "list_all2 eq xs ys"
   shows "eq (HTreeHandle (create_tree xs)) (HTreeHandle (create_tree ys))"
 proof -
@@ -448,7 +472,7 @@ proof -
   then show ?thesis by (rule eq.EqTree)
 qed
 
-lemma create_thunk_eq:
+theorem create_thunk_eq:
   assumes "eq (HTreeHandle t1) (HTreeHandle t2)"
   shows   "eq (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))"
 proof -
@@ -458,7 +482,7 @@ proof -
   then show ?thesis by (rule eq.EqThunkTree)
 qed
 
-lemma run_internal_eq:
+theorem run_internal_eq:
   assumes "eq_state s1 s2"
   shows "eq_state (run_internal s1) (run_internal s2)"
 proof -
@@ -475,438 +499,320 @@ proof -
   show ?thesis using HS DS' eq_state_def by auto
 qed
 
-lemma step_eq_none:
+(* 4. Given eq_state s1 s2, and some operation op, stepping them gives equivalent step results *)
+
+lemma step_fun_eq:
   assumes "eq_state s1 s2"
-  and "step op s1 = None"
-  shows "step op s2 = None"
+  shows   "eq_step_result (step op s1) (step op s2)"
 proof -
   have L: "length (hs s1) = length (hs s2)" using eq_state_hs_same_length[OF assms(1)] .
   have D: "(ds s1) = (ds s2)" using eq_state_ds[OF assms(1)] .
 
   show ?thesis
   proof (cases op)
-    case (OGetBlobData x)
-    show ?thesis 
-    proof (cases "x < length (hs s1)")
-      case False
-      then show ?thesis using L OGetBlobData False by (simp add: step.simps)
-    next 
+    case (OGetBlobData i)
+    then show ?thesis
+    proof (cases "i < length (hs s1)")
       case True
-      then have EQ: "eq ((hs s1) ! x) ((hs s2) !x)" using eq_state_hs_nth[OF assms(1) True] by simp
-      have "\<not> (\<exists>b. (hs s1) ! x = HBlobHandle b)"
-        using True OGetBlobData assms(2)
-        by (auto simp: step.simps split: handle.splits)
-      then have "\<not> (\<exists>b. (hs s2) ! x = HBlobHandle b)"
-        using eq_not_blob EQ
-        by blast
-      then show ?thesis using OGetBlobData True by (auto simp: step.simps split: handle.splits)
-    qed
-  next
-    case (OGetTreeData x y)
-    show ?thesis
-    proof (cases "x < length (hs s1)")
-      case False
-      then show ?thesis using L OGetTreeData False by (simp add: step.simps)
-    next
-      case True
-      then have EQ: "eq ((hs s1) ! x) ((hs s2) !x)" 
-        using eq_state_hs_nth[OF assms(1) True] by simp
-      have EQL: "x < length (hs s2)" using eq_state_hs_nth[OF assms(1) True] by simp
-      show ?thesis
-      proof (cases "\<not>(\<exists>t. (hs s1) ! x = HTreeHandle t)")
-        case True
-        then have "\<not>(\<exists>t. (hs s2) ! x = HTreeHandle t)" using eq_not_tree EQ by blast
-        then show ?thesis using OGetTreeData True 
-          by (auto simp: step.simps split: handle.splits)
-      next
-        case False
-        then obtain "t1" where EQ1: "(hs s1) ! x = HTreeHandle t1"
+      then have EQ: "eq (hs s1 ! i) (hs s2 ! i)" using assms eq_state_hs_nth by auto
+      then show ?thesis
+      proof (cases "(hs s1 ! i)")
+        case (EqBlob b1 b2)
+        then have "step op s1 = Some(Continue (dpush s1 (get_blob_data b1)))"
+             and  "step op s2 = Some(Continue (dpush s2 (get_blob_data b2)))"
+             and  "eq_state (dpush s1 (get_blob_data b1)) (dpush s2 (get_blob_data b2))"
+          using OGetBlobData True L assms eq_dpush
           by auto
-        then have Y: "\<not> y < get_tree_size t1" using OGetTreeData True False assms(2) 
-          by (auto simp add: step.simps split: handle.splits)
-        have "\<exists>t. (hs s2) ! x = HTreeHandle t" using EQ eq_same_kind_tree EQ1 by simp blast
-        then obtain "t2" where EQ2: "(hs s2) ! x = HTreeHandle t2" by auto
-        then have "\<not> y < get_tree_size t2" using Y EQ EQ1 EQ2 get_tree_size_eq by simp
-        then show ?thesis using OGetTreeData EQ2 EQL 
-          by (auto simp: step.simps split: handle.splits)
+        then show ?thesis using eq_step_result_def by auto
+      next
+        case (EqTree t1 t2)
+        then have "step op s1 = None" and "step op s2 = None"
+          using OGetBlobData True by auto
+        then show ?thesis using eq_step_result_def by auto
+      next
+        case (EqThunk th1 r1 th2 r2)
+        then have "step op s1 = None" and "step op s2 = None"
+          using OGetBlobData True by auto
+        then show ?thesis using eq_step_result_def by auto
+      next
+        case (EqThunkTree t1 t2)
+        then have "step op s1 = None" and "step op s2 = None"
+          using OGetBlobData True by auto
+        then show ?thesis using eq_step_result_def by auto
+      next
+        case (EqSelf)
+        then show ?thesis 
+          using OGetBlobData True L eq_step_result_def assms eq_dpush 
+          by (cases "hs s1 ! i") auto
       qed
+    next
+      case False
+      then show ?thesis using OGetBlobData False L eq_step_result_def by auto
     qed
   next
-    case (OCreateBlob x)
-    then show ?thesis using assms(2) OCreateBlob D by (auto simp: step.simps)
-  next
-    case (OCreateThunk x)
-    show ?thesis 
-    proof (cases "x < length (hs s1)")
+    case (OGetTreeData i j)
+    then show ?thesis
+    proof (cases "i < length (hs s1)")
       case True
-      have "\<not>(\<exists>t. (hs s1) ! x = HTreeHandle t)" 
-        using eq_state_hs_nth[OF assms(1) True] OCreateThunk True assms(2) 
-        by (auto simp: step.simps split: handle.splits)
-      then have "\<not>(\<exists>t. (hs s2) !x = HTreeHandle t)" 
-        using eq_state_hs_nth[OF assms(1) True] eq_not_tree by auto
-      then show ?thesis using OCreateThunk True 
-        by (auto simp: step.simps split: handle.splits)
-    next 
+      then have EQ: "eq (hs s1 ! i) (hs s2 ! i)" using assms eq_state_hs_nth by auto
+      then show ?thesis
+      proof (cases "(hs s1 ! i)")
+        case (EqBlob b1 b2)
+        then show ?thesis using OGetTreeData True eq_step_result_def by auto
+      next
+        case (EqTree t1 t2)
+        then show ?thesis
+        proof -
+          consider (True') "j < get_tree_size t1"
+            | (False') "\<not> j < get_tree_size t1"
+            by blast
+          then show ?thesis
+          proof cases
+            case True'
+            then have EQCHILD: "eq (get_tree_data t1 j) (get_tree_data t2 j)"
+              using EqTree EQ get_tree_data_eq by auto
+            then have EQRES: "eq_state (hpush s1 (get_tree_data t1 j)) (hpush s2 (get_tree_data t2 j))"
+              using assms eq_state_hpush by auto
+
+            have "j < get_tree_size t2" 
+              using EqTree True' 
+              by (simp add: get_tree_size_def list_all2_lengthD)
+            then have S2: "step op s2 = Some (Continue (hpush s2 (get_tree_data t2 j)))"
+              using OGetTreeData EqTree True L by auto
+
+            have "step op s1 = Some (Continue (hpush s1 (get_tree_data t1 j)))"
+              using OGetTreeData True True' EqTree by auto
+            then show ?thesis using S2 EQRES eq_step_result_def by auto
+          next
+            case False'
+            then have "\<not> j < get_tree_size t2"
+              using EqTree
+              by (simp add: get_tree_size_def list_all2_lengthD)
+            then show ?thesis 
+              using OGetTreeData True False' L EqTree eq_step_result_def by auto
+          qed 
+        qed
+      next
+        case (EqThunk th1 r1 th2 r2)
+        then show ?thesis using OGetTreeData True eq_step_result_def by auto
+      next
+        case (EqThunkTree t1 t2)
+        then show ?thesis using OGetTreeData True eq_step_result_def by auto
+      next 
+        case (EqSelf)
+        then show ?thesis 
+          using OGetTreeData True L eq_step_result_def assms eq_state_hpush_self
+          by (cases "hs s1 ! i") auto
+      qed
+    next
       case False
-      then show ?thesis 
-        using L OCreateThunk 
-        by (auto simp: step.simps split: handle.splits)
+      then show ?thesis using OGetTreeData eq_step_result_def L by auto
+    qed
+  next
+    case (OCreateBlob i)
+    then show ?thesis
+    proof (cases "i < length (ds s1)")
+      case True
+      then have EQD: "ds s1 ! i = ds s2 ! i" using D by simp
+      then show ?thesis using OCreateBlob True eq_state_hpush_self[OF assms] eq_step_result_def D by auto
+    next
+      case False
+      then show ?thesis using OCreateBlob D eq_step_result_def by auto
+    qed
+  next
+    case (OCreateThunk i)
+    then show ?thesis
+    proof (cases "i < length (hs s1)")
+      case True
+      then have EQ: "eq (hs s1 ! i) (hs s2 ! i)" using assms eq_state_hs_nth by auto
+      then show ?thesis
+      proof (cases "hs s1 ! i")
+        case (EqBlob b1 b2)
+        then show ?thesis using OCreateThunk True EqBlob eq_step_result_def by auto
+      next
+        case (EqTree t1 t2)
+        have "eq (HTreeHandle (get_thunk_tree (create_thunk t1))) (HTreeHandle (get_thunk_tree (create_thunk t2)))"
+          using EQ EqTree by simp
+        then have "eq (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))" 
+          by (rule eq.EqThunkTree)
+        then show ?thesis 
+          using OCreateThunk True EqTree assms eq_state_hpush eq_step_result_def L by auto
+      next
+        case (EqThunk th1 r1 th2 r2)
+        then show ?thesis using OCreateThunk True eq_step_result_def by auto
+      next
+        case (EqThunkTree t1 t2)
+        then show ?thesis using OCreateThunk True eq_step_result_def by auto
+      next
+        case (EqSelf)
+        then show ?thesis
+          using OCreateThunk True L eq_step_result_def assms eq_state_hpush_self
+          by (cases "hs s1 ! i") auto
+      qed
+    next
+      case False
+      then show ?thesis using OCreateThunk L eq_step_result_def by auto
     qed
   next
     case (OCreateTree xs)
     then show ?thesis
-      using assms(2) L
-      by (auto simp: step.simps Let_def split: if_splits)
-  next
-    case (ORunInternal)
-    then show ?thesis using assms by (auto simp: step.simps)
-  next
-    case (OReturn x)
-    then show ?thesis using assms L 
-      by (auto simp: step.simps)
-  qed
-qed
+    proof (cases "\<forall>i \<in> set xs. i < length (hs s1)")
+      case True
+      let ?hlist1 = "map (\<lambda>i. hs s1 ! i) xs"
+      let ?hlist2 = "map (\<lambda>i. hs s2 ! i) xs"
 
-
-lemma step_eq_return:
-  assumes "eq_state s1 s2"
-  and "step op s1 = Some (Return h1)"
-shows "\<exists>h2. step op s2 = Some (Return h2) \<and> eq h1 h2"
-proof -
-  have L: "length (hs s1) = length (hs s2)" using eq_state_hs_same_length[OF assms(1)] .
-
-  show ?thesis
-  proof (cases op)
-    case (OGetBlobData x)
-    then have False 
-      using assms(2)
-      by (auto simp: step.simps split: handle.splits if_splits)
-    then show ?thesis by auto
-  next
-    case (OGetTreeData x y)
-    then have False 
-      using assms(2)
-      by (auto simp: step.simps split: handle.splits if_splits)
-    then show ?thesis by auto
-  next
-    case (OCreateBlob x)
-    then have False 
-      using assms(2)
-      by (auto simp: step.simps split: handle.splits if_splits)
-    then show ?thesis by auto
-  next
-    case (OCreateTree xs)
-    then have False 
-      using assms(2)
-      by (auto simp: step.simps split: handle.splits if_splits)
-    then show ?thesis by auto
-  next
-    case (OCreateThunk x)
-    then have False 
-      using assms(2)
-      by (auto simp: step.simps split: handle.splits if_splits)
-    then show ?thesis by auto
-  next
-    case (ORunInternal)
-    then have False 
-      using assms(2)
-      by (auto simp: step.simps split: handle.splits if_splits)
-    then show ?thesis by auto
-  next
-    case (OReturn x)
-    then have L1:"x < length (hs s1)" and H1:"(hs s1) ! x = h1"
-      using assms(2) OReturn
-      by (auto simp: step.simps split: if_splits)
-
-    let ?h2 = "(hs s2) ! x"
-
-    have "x < length (hs s2)" using L L1 by simp
-    then have STEP: "step op s2 = Some (Return ?h2)" 
-      using OReturn 
-      by (auto simp: step.simps)
-
-    have "eq h1 ?h2" using assms(1) H1 eq_state_hs_nth L L1 by auto
-
-    then show ?thesis using STEP by auto
-  qed
-qed
-
-lemma step_eq_continue:
-  assumes "eq_state s1 s2"
-  and "step op s1 = Some (Continue r1)"
-shows "\<exists>r2. step op s2 = Some (Continue r2) \<and> eq_state r1 r2"
-proof -
-  have L: "length (hs s1) = length (hs s2)" using eq_state_hs_same_length[OF assms(1)] .
-  have D : "(ds s1) = (ds s2)" using eq_state_ds[OF assms(1)] .
-
-  show ?thesis
-  proof (cases op)
-    case (OReturn x)
-    then have False 
-      using assms(2)
-      by (cases "x < length (hs s1)") (auto simp: step.simps)
-    then show ?thesis by auto
-  next
-    case (OGetBlobData x)
-    obtain b1 where L1: "x < length (hs s1)" 
-           and B1: "hs s1 ! x = HBlobHandle b1"
-           and R1: "r1 = dpush s1 (get_blob_data b1)"
-      using OGetBlobData assms(2)
-      by (auto simp: step.simps split: if_splits handle.splits step_result.splits)
-
-    have EQ: "eq (hs s1 ! x) (hs s2 ! x)" using L1 assms(1) eq_state_hs_nth by auto
-    then obtain b2 where B2: "hs s2 ! x = HBlobHandle b2" 
-      using eq_same_kind_blob B1 by auto
-
-    have "get_blob_data b1 = get_blob_data b2"
-      using EQ B1 B2 get_blob_data_eq
-      by auto
-
-    then have STATE:"eq_state (dpush s1 (get_blob_data b1)) (dpush s2 (get_blob_data b2))"
-      using assms(1) eq_dpush by auto
-
-    have STEP: "step op s2 = Some(Continue(dpush s2 (get_blob_data b2)))"
-      using L L1 B2 OGetBlobData 
-      by (auto simp: step.simps split:if_splits handle.splits)
-
-    let ?r2 = "Some(Continue(dpush s2 (get_blob_data b2)))"
-    show ?thesis using STEP STATE R1 by auto
-  next
-    case (OGetTreeData x y)
-    obtain h1 where L1: "x < length (hs s1)" 
-              and H1: "hs s1 ! x = HTreeHandle h1" 
-              and S1: "y < get_tree_size h1" 
-              and R1: "r1 = hpush s1 (get_tree_data h1 y)"
-      using assms(2) OGetTreeData by (auto simp: step.simps split: if_splits handle.splits)
-
-    have EQ: "eq (hs s1 ! x) (hs s2 ! x)" using L1 assms(1) eq_state_hs_nth by auto
-    then obtain h2 where H2: "hs s2 ! x = HTreeHandle h2" 
-      using eq_same_kind_tree H1 by auto
-
-    have S2: "y < get_tree_size h2" using EQ H1 H2 get_tree_size_eq S1 by auto
-
-    have EQOUT: "eq (get_tree_data h1 y) (get_tree_data h2 y)" 
-      using get_tree_data_eq S1 EQ H1 H2 by auto
-
-    let ?r2 = "hpush s2 (get_tree_data h2 y)"
-    have STATE: "eq_state r1 ?r2" using eq_state_hpush assms(1) EQOUT S1 R1 by auto
-    have STEP: "step op s2 = Some(Continue ?r2)" using OGetTreeData L L1 H2 S2 
-      by (auto simp: step.simps split: if_splits handle.splits)
-    show ?thesis using STATE STEP by auto
-  next
-    case (OCreateBlob x)
-    then have L1: "x < length (ds s1)" 
-         and R1: "r1 = hpush s1 (HBlobHandle (create_blob (ds s1 ! x)))"
-      using assms(2) by (auto simp: step.simps split: if_splits)
-
-    have "(ds s1) ! x = (ds s2) ! x"
-      using D L1 by simp
-    then have EQOUT: "eq (HBlobHandle (create_blob (ds s1 ! x))) (HBlobHandle (create_blob (ds s2 ! x)))"
-      using create_blob_eq
-      by auto
-
-    let ?r2 = "hpush s2 (HBlobHandle (create_blob (ds s2 ! x)))"
-    have STATE: "eq_state r1 ?r2"
-      using assms(1) EQOUT eq_state_hpush R1 by auto
-    have STEP: "step op s2 = Some (Continue ?r2)"
-      using D L1 OCreateBlob by (auto simp: step.simps split: if_split handle.splits)
-    show ?thesis using STATE STEP by auto
-  next
-    case (OCreateTree xs)
-    let ?hlist1 = "map (\<lambda>i. hs s1 ! i) xs"
-    let ?hlist2 = "map (\<lambda>i. hs s2 ! i) xs"
-
-    have L1: "\<forall>x \<in> set xs. x < length (hs s1)"
-     and R1: "r1 = hpush s1 (HTreeHandle (create_tree ?hlist1))"
-      using assms(2) OCreateTree 
-      by (auto simp: step.simps split: if_splits handle.splits)
-
-    have "list_all2 eq ?hlist1 ?hlist2"
-    proof -
-      have "\<forall> x \<in> set xs. eq (hs s1 ! x) (hs s2 ! x)"
-        using L L1 assms(1) eq_state_hs_nth by auto
-      then show ?thesis by (induction xs) auto
-    qed
-
-    then have EQ: "eq (HTreeHandle (create_tree ?hlist1)) (HTreeHandle (create_tree ?hlist2))"
-      using create_tree_eq
-      by auto
-
-    let ?r2 = "hpush s2 (HTreeHandle (create_tree ?hlist2))"
-    have STATE: "eq_state r1 ?r2"
-      using assms(1) EQ eq_state_hpush R1 by auto
-    have STEP: "step op s2 = Some (Continue ?r2)"
-      using L L1 OCreateTree by (auto simp: step.simps split: if_split handle.splits)
-    show ?thesis using STATE STEP by auto
-  next
-    case (OCreateThunk i)
-    then obtain t1 where L1: "i < length (hs s1)"
-                    and T1: "(hs s1 ! i) = HTreeHandle t1"
-                    and R1: "r1 = hpush s1 (HThunkHandle (create_thunk t1))"
-      using assms(2)
-      by (auto simp: step.simps split: if_splits handle.splits)
-
-    have EQ: "eq (hs s1 ! i) (hs s2 ! i)" 
-      using assms(1) eq_state_hs_nth L L1
-      by auto
-    then obtain t2 where T2: "(hs s2 ! i) = HTreeHandle t2"
-      using eq_same_kind_tree T1
-      by auto
-
-    let ?r2 = "hpush s2 (HThunkHandle (create_thunk t2))"
-
-    have "eq (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))"
-      using T1 T2 EQ create_thunk_eq
-      by auto
-    then have STATE: "eq_state r1 ?r2"
-      using assms(1) eq_state_hpush R1 by auto
-    have STEP: "step op s2 = Some (Continue ?r2)"
-      using L L1 OCreateThunk T2 by (auto simp: step.simps split: if_split handle.splits)
-    then show ?thesis using STATE by auto
-  next
-    case (ORunInternal)
-    then have R1: "r1 = run_internal s1"
-      using assms(2)
-      by (auto simp: step.simps)
-
-    let ?r2 = "run_internal s2"
-    have STATE: "eq_state r1 ?r2"
-      using assms(1) R1 run_internal_eq
-      by auto
-    have STEP: "step op s2 = Some (Continue ?r2)" 
-      using ORunInternal by (auto simp: step.simps)
-    then show ?thesis using STATE by auto
-  qed
-qed
-
-lemma step_fun_eq:
-  assumes "eq_state s1 s2"
-  shows   "eq_step_result (step op s1) (step op s2)"
-proof (cases "step op s1")
-  case None
-  then show ?thesis using assms eq_step_result_def step_eq_none by auto
-next
-  case (Some r1)
-  show ?thesis
-  proof (cases r1)
-    case (Continue x1)
-    obtain x2 where "step op s2 = Some (Continue x2) \<and> eq_state x1 x2"
-      using assms Some Continue step_eq_continue by blast
-    then show ?thesis using eq_step_result_def Some Continue by auto
-  next
-    case (Return x1)
-    obtain x2 where "step op s2 = Some (Return x2) \<and> eq x1 x2"
-      using assms Some Return step_eq_return by blast
-    then show ?thesis using eq_step_result_def Some Return by auto
-  qed
-qed
-
-lemma exec_eq_some:
-  assumes "eq_state s1 s2"
-      and "exec p s1 = Some h1"
-    shows "\<exists>h2. exec p s2 = Some h2 \<and> eq h1 h2"
-  using assms
-proof (induction p arbitrary: s1 s2 h1)
-  case Nil
-  then show ?case using assms(1) by auto
-next
-  case (Cons op xs)
-  have EQ: "eq_step_result (step op s1) (step op s2)"
-    using assms(1) step_fun_eq Cons by auto
-
-  show ?case
-  proof (cases "step op s1")
-    case None
-    then show ?thesis using assms(2) Cons by auto
-  next
-    case (Some r1)
-    show ?thesis
-    proof (cases r1)
-      case (Continue s1')
-      then have E1: "exec xs s1' = Some h1"
-        using Some Cons by (auto simp: exec.simps)
-
-      have S1: "step op s1 = Some (Continue s1')" 
-        using Some Continue 
+      have "list_all2 eq ?hlist1 ?hlist2"
+      proof -
+        have "\<forall>i \<in> set xs. eq (hs s1 ! i) (hs s2 ! i)"
+          using True L assms eq_state_hs_nth by auto
+        then show ?thesis by (induction xs) auto
+      qed
+      then have "list_all2 eq (get_tree_raw (create_tree ?hlist1)) (get_tree_raw (create_tree ?hlist2))"
         by simp
-      then obtain s2' where S2: "step op s2 = Some (Continue s2')"
-        using step_eq_continue assms(1) Cons
-        by blast
-
-      have "eq_step_result (step op s1) (step op s2)"
-        using assms(1) step_fun_eq Cons
-        by blast
-      then have "eq_state s1' s2'"
-        unfolding eq_step_result_def
-        using S1 S2
-        by auto
-
-      then obtain h2 where H2: "exec xs s2' = Some h2 \<and> eq h1 h2"
-        using Cons.IH E1 by blast
-      have "exec (op # xs) s2 = Some h2"
-        using Cons S2 H2 by auto
-      then show ?thesis 
-        using H2 by auto
+      then have "eq (HTreeHandle (create_tree ?hlist1)) (HTreeHandle (create_tree ?hlist2))"
+        by (rule eq.EqTree)
+      then show ?thesis using OCreateTree True L assms eq_state_hpush eq_step_result_def by auto
     next
-      case (Return h1')
-      then have "h1 = h1'" using assms(2) Some Cons by auto
-      then have H1: "step op s1 = Some (Return h1)" 
-        using Some Return by simp
-      then obtain h2 where H2: "step op s2 = Some (Return h2)"
-        using step_eq_return assms(1) Cons
-        by blast
-
-      have "eq_step_result (step op s1) (step op s2)"
-        using assms(1) step_fun_eq Cons
-        by blast
-      then have "eq h1 h2"
-        unfolding eq_step_result_def
-        using H1 H2
-        by auto
-      then show ?thesis using Cons H2 by auto
+      case False
+      then show ?thesis using OCreateTree L eq_step_result_def by auto
+    qed
+  next
+    case (ORunInternal)
+    have "eq_state (run_internal s1) (run_internal s2)"
+      using assms run_internal_def eq_state_def by auto
+    then show ?thesis using ORunInternal eq_step_result_def by auto
+  next
+    case (OReturn i)
+    then show ?thesis
+    proof (cases "i < length (hs s1)")
+      case True
+      then have EQ: "eq (hs s1 ! i) (hs s2 ! i)" using assms eq_state_hs_nth by auto
+      then show ?thesis using OReturn True L eq_step_result_def by auto
+    next
+      case False
+      then show ?thesis using OReturn L eq_step_result_def by auto
     qed
   qed
 qed
 
-lemma exec_eq_none:
-"eq_state s1 s2 \<Longrightarrow> exec p s1 = None \<Longrightarrow> exec p s2 = None"
+corollary step_eq_none:
+  assumes "eq_state s1 s2"
+     and "step op s1 = None"
+   shows "step op s2 = None"
+proof -
+  have "eq_step_result (step op s1) (step op s2)"
+    using step_fun_eq assms(1) by blast
+  then show ?thesis using assms(2) using eq_step_result_def by (cases "step op s2") auto
+qed
+
+corollary step_eq_return:
+  assumes "eq_state s1 s2"
+    and "step op s1 = Some (Return h1)"
+  obtains h2 where "step op s2 = Some (Return h2) \<and> eq h1 h2"
+proof -
+  have H: "eq_step_result (step op s1) (step op s2)"
+    using step_fun_eq assms(1) by blast
+  then show ?thesis using assms(2) eq_step_result_def 
+  proof (cases "step op s2")
+    case None
+    then show ?thesis using H eq_step_result_def assms(2) by auto
+  next
+    case (Some a)
+    then show ?thesis
+    proof (cases a)
+      case (Continue)
+      then show ?thesis using H eq_step_result_def assms(2) Some by auto
+    next
+      case (Return x)
+      then have "eq h1 x" using H eq_step_result_def assms(2) Some by auto
+      then have "step op s2 = Some (Return x) \<and> eq h1 x"
+        using Some Return by blast
+      then show ?thesis using that by auto
+    qed
+  qed
+qed
+
+corollary step_eq_continue:
+  assumes "eq_state s1 s2"
+    and "step op s1 = Some (Continue s1')"
+  obtains s2' where "step op s2 = Some (Continue s2') \<and> eq_state s1' s2'"
+proof -
+  have H: "eq_step_result (step op s1) (step op s2)"
+    using step_fun_eq assms(1) by blast
+  then show ?thesis using assms(2) eq_step_result_def 
+  proof (cases "step op s2")
+    case None
+    then show ?thesis using H eq_step_result_def assms(2) by auto
+  next
+    case (Some a)
+    then show ?thesis
+    proof (cases a)
+      case (Return)
+      then show ?thesis using H eq_step_result_def assms(2) Some by auto
+    next
+      case (Continue x)
+      then have "eq_state s1' x" using H eq_step_result_def assms(2) Some by auto
+      then have "step op s2 = Some (Continue x) \<and> eq_state s1' x"
+        using Some Continue by blast
+      then show ?thesis using that by auto 
+    qed
+  qed
+qed
+
+lemma exec_eq:
+  "eq_state s1 s2 \<Longrightarrow>  eq_opt (exec p s1) (exec p s2)"
 proof (induction p arbitrary: s1 s2)
   case Nil
   then show ?case by auto
 next
-  case (Cons op xs)
-  have EQ: "eq_step_result (step op s1) (step op s2)"
-    using step_fun_eq[OF Cons.prems(1)] Cons by auto
-
-  show ?case
-  proof (cases "step op s1")
+  case (Cons i xs)
+  then show ?case 
+  proof (cases "step i s1")
     case None
-    then have "step op s1 = None" by simp
-    then have "step op s2 = None" 
-      using step_eq_none Cons.prems(1)
-      by auto
-    then show ?thesis using Cons by auto
+    have "step i s2 = None"
+      using step_eq_none Cons.prems None by blast
+    then show ?thesis using Cons None  by auto
   next
-    case (Some r1)
-    then show ?thesis
-    proof (cases r1)
-      case (Return h1)
-      then show ?thesis using Cons.prems(2) Cons Some by auto
-    next
+    case (Some a)
+    then show ?thesis 
+    proof (cases a)
       case (Continue s1')
-      then have S1: "step op s1 = Some (Continue s1')" using Some by simp
-      then obtain s2' where S2: "step op s2 = Some(Continue s2')" 
+      then obtain s2' where STEP2: "step i s2 = Some (Continue s2')"
                         and EQ': "eq_state s1' s2'"
-        using step_eq_continue Cons.prems(1) by blast
-
-      have "exec xs s1' = None"
-        using Cons Some Continue by simp
-      then have "exec xs s2' = None"
-        using EQ' Cons.IH
-        by auto
-      then show ?thesis using Cons S2 by auto
+        using step_eq_continue[OF Cons.prems] Some Continue by blast
+      have "eq_opt (exec xs s1') (exec xs s2')"
+        using Cons.IH EQ' by blast
+      then show ?thesis using Cons Some Continue STEP2 by auto
+    next
+      case (Return h1)
+      then obtain h2 where "step i s2 = Some (Return h2)"
+                       and "eq h1 h2"
+        using step_eq_return Cons.prems Some Return by blast
+      then show ?thesis using Cons Some Return by auto
     qed
   qed
+qed
+  
+corollary exec_eq_some:
+  assumes "eq_state s1 s2"
+      and "exec p s1 = Some h1"
+    shows "\<exists>h2. exec p s2 = Some h2 \<and> eq h1 h2"
+proof -
+  have H: "eq_opt (exec p s1) (exec p s2)"
+    using assms(1) exec_eq by blast
+  then show ?thesis
+    using assms(2) by (cases "exec p s2") auto
+qed
+  
+corollary exec_eq_none:
+  assumes "eq_state s1 s2"
+      and "exec p s1 = None"
+    shows "exec p s2 = None"
+proof -
+  have H: "eq_opt (exec p s1) (exec p s2)"
+    using assms(1) exec_eq by blast
+  then show ?thesis
+    using assms(2) by (cases "exec p s2") auto
 qed
 
 lemma state_init_eq:
@@ -916,59 +822,54 @@ lemma state_init_eq:
   unfolding state_init_def eq_state_def
   by simp
 
-lemma think_eq_some:
+lemma think_eq:
+  assumes "eq (HTreeHandle t1) (HTreeHandle t2)"
+    shows "eq_opt (think (create_thunk t1)) (think (create_thunk t2))"
+proof -
+  let ?s1 = "state_init (create_thunk t1)"
+  let ?s2 = "state_init (create_thunk t2)"
+  have EQSTATE: "eq_state ?s1 ?s2"
+    using state_init_eq assms(1)
+    by auto
+  have SAMEPROG: "get_prog (get_thunk_tree (create_thunk t1)) = get_prog (get_thunk_tree (create_thunk t2))"
+    using get_prog_eq assms(1)
+    by auto
+
+  show ?thesis
+  proof (cases "think (create_thunk t1)")
+    case None
+    then have "think (create_thunk t2) = None"
+      using EQSTATE SAMEPROG exec_eq_none think_def by auto
+    then show ?thesis using None by auto
+  next
+    case (Some h1)
+    then have "exec (get_prog (get_thunk_tree (create_thunk t1))) ?s1 = Some h1"
+      using think_def by auto
+    then obtain h2 where "exec (get_prog (get_thunk_tree (create_thunk t2))) ?s2 = Some h2 \<and> eq h1 h2"
+      using exec_eq_some[OF EQSTATE] SAMEPROG by auto
+    then show ?thesis using Some think_def by auto
+  qed
+qed
+
+corollary think_eq_some:
   assumes "eq (HTreeHandle t1) (HTreeHandle t2)"
       and "think (create_thunk t1) = Some r1"
     shows "\<exists>r2. think (create_thunk t2) = Some r2 \<and> eq r1 r2"
 proof -
-  let ?s1 = "state_init (create_thunk t1)"
-  let ?s2 = "state_init (create_thunk t2)"
-
-  have EQ: "eq_state ?s1 ?s2"
-    using state_init_eq assms(1)
-    by auto
-
-  have "get_prog (get_thunk_tree (create_thunk t1)) = get_prog (get_thunk_tree (create_thunk t2))"
-    using get_prog_eq assms(1)
-    by auto
-  then have "exec (get_prog (get_thunk_tree (create_thunk t2))) ?s1 = Some r1"
-    using assms(2)
-    unfolding think_def
-    by simp
-  then obtain r2 where "exec (get_prog (get_thunk_tree (create_thunk t2))) ?s2 = Some r2 \<and> eq r1 r2"
-    using EQ exec_eq_some
-    by blast
-  then show ?thesis using think_def by auto
+  have "eq_opt (think (create_thunk t1)) (think (create_thunk t2))"
+    using think_eq assms(1) by auto
+  then show ?thesis using assms(2) by (cases "think (create_thunk t2)") auto
 qed
 
-lemma think_eq_none:
+corollary think_eq_none:
   assumes "eq (HTreeHandle t1) (HTreeHandle t2)"
      and "think (create_thunk t1) = None"
    shows "think (create_thunk t2) = None"
 proof -
-  let ?s1 = "state_init (create_thunk t1)"
-  let ?s2 = "state_init (create_thunk t2)"
-
-  have EQ: "eq_state ?s1 ?s2"
-    using state_init_eq assms(1)
-    by auto
-
-  have "get_prog (get_thunk_tree (create_thunk t1)) = get_prog (get_thunk_tree (create_thunk t2))"
-    using get_prog_eq assms(1)
-    by auto
-  then have "exec (get_prog (get_thunk_tree (create_thunk t2))) ?s1 = None"
-    using assms(2)
-    unfolding think_def
-    by simp
-  then show ?thesis
-    using EQ exec_eq_none think_def
-    by auto
+  have "eq_opt (think (create_thunk t1)) (think (create_thunk t2))"
+    using think_eq assms(1) by auto
+  then show ?thesis using assms(2) by (cases "think (create_thunk t2)") auto
 qed
-
-fun eq_opt :: "handle option \<Rightarrow> handle option \<Rightarrow> bool" where
-  "eq_opt None None = True"
-| "eq_opt (Some h1) (Some h2) = eq h1 h2"
-| "eq_opt _ _ = False"
 
 lemma force_with_fuel_eq:
   shows "\<And>t1 t2 h1.
@@ -991,7 +892,7 @@ proof (induction n1)
     then have "force_with_fuel 0 h1' = Some h1" 
       using 0 by auto
     then have NT1: "\<not> is_thunk h1'" and EQ': "Some h1' = Some h1"
-      by (auto simp: force_with_fuel.simps split: if_split handle.splits)
+      by (auto split: if_split handle.splits)
 
     obtain h2' where Some2: "think (create_thunk t2) = Some h2'"
                  and    EQ: "eq h1' h2'"
@@ -1000,7 +901,7 @@ proof (induction n1)
 
     have NT2: "\<not> is_thunk h2'" using NT1 eq_not_thunk EQ by auto
     then have "force_with_fuel 0 h2' = Some h2'" 
-      by (auto simp: force_with_fuel.simps split: if_split handle.splits)
+      by (auto split: if_split handle.splits)
     then have FORCE2: "force_with_fuel (Suc 0) (HThunkHandle (create_thunk t2)) = Some h2'"
       using Some2 by auto
     have EQN: "eq h1 h2'" using EQ' EQ by simp
@@ -1240,7 +1141,7 @@ inductive coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
     force (HThunkHandle th2) = Some r2 \<Longrightarrow>
     coupon_eq r1 r2"
 
-theorem coupon_legit:
+theorem coupon_implies_eq:
   assumes "coupon_eq h1 h2"
   shows "eq h1 h2"
   using assms
@@ -1270,6 +1171,12 @@ next
   then have "eq r1 r2" using force_unique CouponThunkForce(3) by auto
   then show ?case by auto
 qed
+
+corollary coupon_good:
+  assumes "coupon_eq (HBlobHandle b1) (HBlobHandle b2)"
+  shows "get_blob_data b1 = get_blob_data b2"
+  using coupon_implies_eq[OF assms] get_blob_data_eq
+  by auto
 
 end
 
