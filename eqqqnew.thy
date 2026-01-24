@@ -291,17 +291,8 @@ coinductive eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
 | EqThunkSomeRes:
   "think t1 = Some r1 \<Longrightarrow>
    think t2 = Some r2 \<Longrightarrow>
-   \<not> is_thunk r1 \<Longrightarrow>
-   \<not> is_thunk r2 \<Longrightarrow>
    eq r1 r2 \<Longrightarrow>
    eq (HThunkHandle t1) (HThunkHandle t2)"
-| EqThunkSymm:
-  "eq (HThunkHandle t1) (HThunkHandle t2) \<Longrightarrow>
-   eq (HThunkHandle t2) (HThunkHandle t1)"
-| EqThunkTrans:
-  "eq (HThunkHandle t1) (HThunkHandle t2) \<Longrightarrow>
-   eq (HThunkHandle t2) (HThunkHandle t3) \<Longrightarrow>
-   eq (HThunkHandle t1) (HThunkHandle t3)"
 | EqSelf:
    "eq h h"
 
@@ -391,6 +382,12 @@ lemma eq_same_kind_blob:
   using assms
   by (cases rule: eq.cases) auto
 
+lemma eq_same_kind_blob_rev:
+  assumes "eq h1 (HBlobHandle b2)"
+  shows "\<exists>b1. h1 = HBlobHandle b1"
+  using assms
+  by (cases rule: eq.cases) auto
+
 lemma eq_not_blob:
   assumes "eq h1 h2"
   shows "(\<forall>b. h1 \<noteq> HBlobHandle b) \<Longrightarrow> (\<forall>b. h2 \<noteq> HBlobHandle b)"
@@ -403,6 +400,12 @@ lemma eq_same_kind_tree:
   using assms
   by (cases rule: eq.cases) auto
 
+lemma eq_same_kind_tree_rev:
+  assumes "eq h1 (HTreeHandle t2)"
+  shows "\<exists>t1. h1 = HTreeHandle t1"
+  using assms
+  by (cases rule: eq.cases) auto
+
 lemma eq_not_tree:
   assumes "eq h1 h2"
   shows "(\<forall>t. h1 \<noteq> HTreeHandle t) \<Longrightarrow> (\<forall>t. h2 \<noteq> HTreeHandle t)"
@@ -412,6 +415,12 @@ lemma eq_not_tree:
 lemma eq_same_kind_thunk:
   assumes "eq (HThunkHandle th1) h2"
   shows "\<exists>th2. h2 = HThunkHandle th2"
+  using assms
+  by (cases rule: eq.cases) auto
+
+lemma eq_same_kind_thunk_rev:
+  assumes "eq h1 (HThunkHandle th2)"
+  shows "\<exists>th1. h1 = HThunkHandle th1"
   using assms
   by (cases rule: eq.cases) auto
 
@@ -1114,10 +1123,11 @@ coinductive R :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
 | R_tree_to_thunk:
     "R (HTreeHandle t1) (HTreeHandle t2)
      \<Longrightarrow> R (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))"
-| R_trans_thunk:
-    "R (HThunkHandle th1) (HThunkHandle th2)
-     \<Longrightarrow> R (HThunkHandle th2) (HThunkHandle th3)
-     \<Longrightarrow> R (HThunkHandle th1) (HThunkHandle th3)"
+| R_thunk_some_res:
+  "think t1 = Some r1 \<Longrightarrow>
+   think t2 = Some r2 \<Longrightarrow>
+   R r1 r2 \<Longrightarrow>
+   R (HThunkHandle t1) (HThunkHandle t2)"
 
 lemma list_all2_RorEq_to_eq:
   assumes IH: "\<And>x y. R x y \<Longrightarrow> eq x y"
@@ -1267,7 +1277,7 @@ next
   case R_tree_to_thunk
   then show ?thesis by simp
 next
-  case R_trans_thunk
+  case R_thunk_some_res
   then show ?thesis by simp
 qed
 
@@ -1295,7 +1305,7 @@ proof (coinduction arbitrary: h1 h2 rule: eq.coinduct)
       by auto
     then show ?thesis using RTree_strong by auto
   next
-    case (R_trans_thunk th1 th2 th3)
+    case (R_thunk_some_res t1 r1 t2 r2)
     then show ?thesis by auto
   next
     case (R_tree_to_thunk t1 t2)
@@ -1392,29 +1402,7 @@ proof (coinduction arbitrary: h1 h2 rule: eq.coinduct)
         then show ?thesis using Some SOME2 R_tree_to_thunk ROREQ NT by auto
       next
         case (HThunkHandle th1)
-        then obtain th2 where TH2: "r2 = HThunkHandle th2" 
-          using R_preserve_thunk RRES by auto
-
-        have "think (create_thunk t2) = Some (HThunkHandle th2)"
-          using SOME2 TH2 by auto
-        then have "eq (HThunkHandle (create_thunk t2)) (HThunkHandle th2)"
-          by (rule eq.EqThunkSingleStep)
-        then have STEP2: "eq (HThunkHandle th2) (HThunkHandle (create_thunk t2))"
-          by (rule eq.EqThunkSymm)
-
-        have "think (create_thunk t1) = Some (HThunkHandle th1)"
-          using Some HThunkHandle by auto
-        then have "eq (HThunkHandle (create_thunk t1)) (HThunkHandle th1)"
-          by (rule eq.EqThunkSingleStep)
-        then have STEP1: "R (HThunkHandle (create_thunk t1)) (HThunkHandle th1)"
-          by (rule R.R_from_eq)
-
-        have SS: "R (HThunkHandle th1) (HThunkHandle th2)" using RRES HThunkHandle TH2 by auto
-       
-        have STEP1: "R (HThunkHandle (create_thunk t1)) (HThunkHandle th2)"
-          using STEP1 SS by (rule R.R_trans_thunk)
-
-        show ?thesis using R_tree_to_thunk HThunkHandle TH2 STEP1 STEP2 by auto
+        show ?thesis using R_tree_to_thunk Some SOME2 RRES by auto
       qed
     qed
   qed
@@ -1427,4 +1415,521 @@ proof -
   have "R (HTreeHandle t1) (HTreeHandle t2)" using assms by (rule R.R_from_eq)
   then have "R (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))" by (rule R.R_tree_to_thunk)
   then show ?thesis using R_impl_eq by auto
+qed
+
+lemma eq_forces_to_induct:
+  assumes E: "eq h1 h2"
+  shows
+    "( (\<forall>v1. (force_with_fuel n h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow>
+            (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)))
+      \<and>
+       (\<forall>v2. (force_with_fuel n h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow>
+            (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))))"
+  using assms
+proof (induction n arbitrary: h1 h2)
+  case 0
+
+  have LHS: "\<forall>v1. (force_with_fuel 0 h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+  proof
+    fix v1
+    show "force_with_fuel 0 h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+    proof
+      assume F1: "force_with_fuel 0 h1 = Some v1"
+      show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume NT1: "\<not> is_thunk v1"
+        show "\<exists>v2. forces_to h2 v2 \<and> eq v1 v2"
+        proof (cases h1)
+          case (HBlobHandle b1)
+          then have "force_with_fuel 0 h1 = Some h1" by auto
+          then have "h1 = v1" using F1 by auto
+          then have EQ: "eq v1 h2" using 0 by auto 
+          
+          obtain b2 where Blob2: "h2 = HBlobHandle b2"
+            using 0 eq_same_kind_blob HBlobHandle by auto
+          then have F2: "force_with_fuel 0 h2 = Some h2" by auto
+          
+          have NT2: "\<not>is_thunk h2" using Blob2 by auto
+          then have "forces_to h2 h2" using F2 forces_to_def by auto
+          then show ?thesis using EQ by auto
+        next
+          case (HTreeHandle t1)
+          then have "force_with_fuel 0 h1 = Some h1" by auto
+          then have "h1 = v1" using F1 by auto
+          then have EQ: "eq v1 h2" using 0 by auto 
+         
+          obtain t2 where Tree2: "h2 = HTreeHandle t2"
+            using 0 eq_same_kind_tree HTreeHandle by auto
+          then have F2: "force_with_fuel 0 h2 = Some h2" by auto
+         
+          have NT2: "\<not>is_thunk h2" using Tree2 by auto
+          then have "forces_to h2 h2" using F2 forces_to_def by auto
+          then show ?thesis using EQ by auto
+        next
+          case (HThunkHandle th1)
+          then have "force_with_fuel 0 h1 = None" by auto
+          then show ?thesis using F1 by auto
+        qed
+      qed
+    qed
+  qed
+      
+  have RHS: "\<forall>v2. (force_with_fuel 0 h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+  proof
+    fix v2
+    show "force_with_fuel 0 h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+    proof
+      assume F2: "force_with_fuel 0 h2 = Some v2"
+      show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume NT2: "\<not> is_thunk v2"
+        show "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2"
+        proof (cases h2)
+          case (HBlobHandle b2)
+          then have "force_with_fuel 0 h2 = Some h2" by auto
+          then have "h2 = v2" using F2 by auto
+          then have EQ: "eq h1 v2" using 0 by auto 
+          
+          obtain b1 where Blob1: "h1 = HBlobHandle b1"
+            using 0 eq_same_kind_blob_rev HBlobHandle by auto
+          then have F1: "force_with_fuel 0 h1 = Some h1" by auto
+          
+          have NT1: "\<not>is_thunk h1" using Blob1 by auto
+          then have "forces_to h1 h1" using F1 forces_to_def by auto
+          then show ?thesis using EQ by auto
+        next
+          case (HTreeHandle t2)
+          then have "force_with_fuel 0 h2 = Some h2" by auto
+          then have "h2 = v2" using F2 by auto
+          then have EQ: "eq h1 v2" using 0 by auto 
+         
+          obtain t1 where Tree1: "h1 = HTreeHandle t1"
+            using 0 eq_same_kind_tree_rev HTreeHandle by auto
+          then have F1: "force_with_fuel 0 h1 = Some h1" by auto
+         
+          have NT1: "\<not>is_thunk h1" using Tree1 by auto
+          then have "forces_to h1 h1" using F1 forces_to_def by auto
+          then show ?thesis using EQ by auto
+        next
+          case (HThunkHandle th2)
+          then have "force_with_fuel 0 h2 = None" by auto
+          then show ?thesis using F2 by auto
+        qed
+      qed
+    qed
+  qed
+
+  show ?case using LHS RHS by blast
+next
+  case (Suc n')
+
+  show ?case
+    using Suc.prems
+  proof (cases rule: eq.cases)
+    case (EqBlob b1 b2)
+    
+    have LHS: "\<forall>v1. (force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+    proof
+      fix v1
+      show "force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume F1: "force_with_fuel (Suc n') h1 = Some v1"
+        show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+        proof
+          assume NT1: "\<not> is_thunk v1"
+          show "\<exists>v2. forces_to h2 v2 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc n') h1 = Some h1" using EqBlob by auto
+            then have "h1 = v1" using F1 by simp
+            then have EQ: "eq v1 h2" using Suc.prems by simp
+
+            have "forces_to h2 h2" using EqBlob forces_to_def by auto
+            then show ?thesis using EQ by auto
+          qed
+        qed
+      qed
+    qed
+
+    have RHS: "(\<forall>v2. force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+    proof
+      fix v2
+      show "force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume F2: "force_with_fuel (Suc n') h2 = Some v2"
+        show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+        proof
+          assume NT2: "\<not> is_thunk v2"
+          show "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc n') h2 = Some h2" using EqBlob by auto
+            then have "h2 = v2"  using F2 by simp
+            then have EQ: "eq h1 v2" using Suc.prems by simp
+
+            have "forces_to h1 h1" using EqBlob forces_to_def by auto
+            then show ?thesis using EQ by auto
+          qed
+        qed
+      qed
+    qed
+
+    show ?thesis using LHS RHS by auto
+  next
+    case (EqTree t1 t2)
+
+    have LHS: "\<forall>v1. (force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+    proof
+      fix v1
+      show "force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume F1: "force_with_fuel (Suc n') h1 = Some v1"
+        show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+        proof
+          assume NT1: "\<not> is_thunk v1"
+          show "(\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+          proof -
+            have "force_with_fuel (Suc n') h1 = Some h1" using EqTree by auto
+            then have "h1 = v1" using F1 by simp
+            then have EQ: "eq v1 h2" using Suc.prems by simp
+
+            have "forces_to h2 h2" using EqTree forces_to_def by auto
+            then show ?thesis using EQ by auto
+          qed
+        qed
+      qed
+    qed
+
+    have RHS: "(\<forall>v2. force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+    proof
+      fix v2
+      show "force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume F2: "force_with_fuel (Suc n') h2 = Some v2"
+        show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+        proof
+          assume NT2: "\<not> is_thunk v2"
+          show "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc n') h2 = Some h2" using EqTree by auto
+            then have "h2 = v2" using F2 by simp
+            then have EQ: "eq h1 v2" using Suc.prems by simp
+
+            have "forces_to h1 h1" using EqTree forces_to_def by auto
+            then show ?thesis using EQ by auto
+          qed
+        qed
+      qed
+    qed
+
+    show ?thesis using LHS RHS by auto
+  next
+    case (EqThunkNone t1 t2)
+    then have F1: "force_with_fuel (Suc n') h1 = None"
+          and F2: "force_with_fuel (Suc n') h2 = None" by auto
+
+    have LHS: "\<forall>v1. (force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+    proof
+      fix v1
+      show "force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume F1': "force_with_fuel (Suc n') h1 = Some v1"
+        show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+        proof -
+          show ?thesis using F1 F1' by auto
+        qed
+      qed
+    qed
+
+   have RHS: "(\<forall>v2. force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+    proof
+      fix v2
+      show "force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume F2': "force_with_fuel (Suc n') h2 = Some v2"
+        show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+        proof -
+          show ?thesis using F2 F2' by auto
+        qed
+      qed
+    qed
+
+    show ?thesis using LHS RHS by auto
+  next
+    case (EqThunkSomeRes t1 r1 t2 r2)
+
+    have EQ: "eq r1 r2" using EqThunkSomeRes by auto
+
+    have LHS: "\<forall>v1. (force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+    proof
+      fix v1
+      show "force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume F1': "force_with_fuel (Suc n') h1 = Some v1"
+        show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+        proof
+          assume NT1: "\<not> is_thunk v1"
+          show "\<exists>v2. forces_to h2 v2 \<and> eq v1 v2"
+          proof (cases r1)
+            case (HBlobHandle b1)
+            then obtain b2 where "r2 = HBlobHandle b2"
+              using EQ eq_same_kind_blob by auto
+            then have "force_with_fuel 1 h2 = Some r2 \<and> \<not>is_thunk r2"
+              using EqThunkSomeRes by auto
+            then have F2: "forces_to h2 r2" using forces_to_def by auto
+
+            have "force_with_fuel (Suc n') h1 = Some r1" 
+              using EqThunkSomeRes HBlobHandle by auto
+            then have "v1 = r1" using F1' by simp
+            then have "eq v1 r2" using EQ by simp
+
+            then show ?thesis using F2 by auto
+          next
+            case (HTreeHandle t1)
+            then obtain t2 where "r2 = HTreeHandle t2"
+              using EQ eq_same_kind_tree by auto
+            then have "force_with_fuel 1 h2 = Some r2 \<and> \<not> is_thunk r2"
+              using EqThunkSomeRes by auto
+            then have F2: "forces_to h2 r2" using forces_to_def by auto
+
+            have "force_with_fuel (Suc n') h1 = Some r1"
+              using EqThunkSomeRes HTreeHandle by auto
+            then have "v1 = r1" using F1' by auto
+            then have "eq v1 r2" using EQ by simp
+            then show ?thesis using F2 by auto
+          next
+            case (HThunkHandle th1)
+            then obtain th2 where TH2: "r2 = HThunkHandle th2"
+              using EQ eq_same_kind_thunk by auto
+
+            have "force_with_fuel (Suc n') h1 = force_with_fuel n' r1"
+              using EqThunkSomeRes by auto
+            then have C1: "force_with_fuel n' r1 = Some v1" using F1' by auto
+
+            have C0: "eq r1 r2" using EqThunkSomeRes by auto
+
+            have "(\<forall>v1. force_with_fuel n' r1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to r2 v2 \<and> eq v1 v2)) \<and> (\<forall>v2. force_with_fuel n' r2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to r1 v1 \<and> eq v1 v2))"
+              using Suc.IH[OF C0] by blast
+            then have "\<forall>v1. force_with_fuel n' r1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to r2 v2 \<and> eq v1 v2)"
+              by blast
+            then have "\<exists>v2. forces_to r2 v2 \<and> eq v1 v2"
+              using C1 NT1 by auto
+            then obtain v2 where F2: "forces_to r2 v2"
+                             and EQ2: "eq v1 v2"
+              by auto
+            then obtain n2 where F2: "force_with_fuel n2 r2 = Some v2" and NT2: "\<not>is_thunk v2"
+              using forces_to_def by auto
+            
+            have "force_with_fuel (Suc n2) h2 = force_with_fuel n2 r2"
+              using EqThunkSomeRes by auto
+            then have "force_with_fuel (Suc n2) h2 = Some v2" using F2 by simp
+            then have "forces_to h2 v2" using NT2 forces_to_def by auto
+            then show ?thesis using EQ2 by auto
+          qed
+        qed
+      qed
+    qed
+
+    have RHS: "(\<forall>v2. force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+    proof
+      fix v2
+      show "force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume F2': "force_with_fuel (Suc n') h2 = Some v2"
+        show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+        proof
+          assume NT2: "\<not> is_thunk v2"
+          show "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2"
+          proof (cases r2)  
+            case (HBlobHandle b2)
+            then obtain b1 where "r1 = HBlobHandle b1"
+              using EQ eq_same_kind_blob_rev by auto
+            then have "force_with_fuel 1 h1 = Some r1 \<and> \<not>is_thunk r1"
+              using EqThunkSomeRes by auto
+            then have F2: "forces_to h1 r1" using forces_to_def by auto
+           
+            have "force_with_fuel (Suc n') h2 = Some r2" 
+              using EqThunkSomeRes HBlobHandle by auto
+            then have "v2 = r2" using F2' by simp
+            then have "eq r1 v2" using EQ by simp
+           
+            then show ?thesis using F2 by auto
+          next
+            case (HTreeHandle t2)
+            then obtain t1 where "r1 = HTreeHandle t1"
+              using EQ eq_same_kind_tree_rev by auto
+            then have "force_with_fuel 1 h1 = Some r1 \<and> \<not>is_thunk r1"
+              using EqThunkSomeRes by auto
+            then have F2: "forces_to h1 r1" using forces_to_def by auto
+           
+            have "force_with_fuel (Suc n') h2 = Some r2" 
+              using EqThunkSomeRes HTreeHandle by auto
+            then have "v2 = r2" using F2' by simp
+            then have "eq r1 v2" using EQ by simp
+           
+            then show ?thesis using F2 by auto
+          next
+            case (HThunkHandle th2)
+            then obtain th1 where TH1: "r1 = HThunkHandle th1"
+             using EQ eq_same_kind_thunk_rev by auto
+    
+            have "force_with_fuel (Suc n') h2 = force_with_fuel n' r2"
+              using EqThunkSomeRes by auto
+            then have C1: "force_with_fuel n' r2 = Some v2" using F2' by auto
+
+            have C0: "eq r1 r2" using EqThunkSomeRes by auto
+
+            have "(\<forall>v1. force_with_fuel n' r1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to r2 v2 \<and> eq v1 v2)) \<and> (\<forall>v2. force_with_fuel n' r2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to r1 v1 \<and> eq v1 v2))"
+              using Suc.IH[OF C0] by blast
+            then have "(\<forall>v2. force_with_fuel n' r2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to r1 v1 \<and> eq v1 v2))"
+              by blast
+            then have "\<exists>v1. forces_to r1 v1 \<and> eq v1 v2"
+              using C1 NT2 by auto
+            then obtain v1 where F1: "forces_to r1 v1"
+                             and EQ2: "eq v1 v2"
+              by auto
+            then obtain n1 where F1: "force_with_fuel n1 r1 = Some v1" and NT1: "\<not>is_thunk v1"
+              using forces_to_def by auto
+           
+            have "force_with_fuel (Suc n1) h1 = force_with_fuel n1 r1"
+              using EqThunkSomeRes by auto
+            then have "force_with_fuel (Suc n1) h1 = Some v1" using F1 by simp
+            then have "forces_to h1 v1" using NT1 forces_to_def by auto
+            then show ?thesis using EQ2 by auto
+          qed
+        qed
+      qed
+    qed
+
+    show ?thesis using LHS RHS by auto
+  next
+    case (EqThunkSingleStep t1 t2)
+    
+    have LHS: "\<forall>v1. (force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+    proof
+      fix v1
+      show "force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume F1: "force_with_fuel (Suc n') h1 = Some v1"
+        show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+        proof
+          assume NT1: "\<not> is_thunk v1"
+          show "\<exists>v2. forces_to h2 v2 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc n') h1 = force_with_fuel n' h2" 
+              using EqThunkSingleStep by auto
+            then have "force_with_fuel n' h2 = Some v1" using F1 by auto
+            then have F2: "forces_to h2 v1" using NT1 forces_to_def by auto
+            have "eq v1 v1" by (rule eq.EqSelf)
+            then show ?thesis using F2 by auto
+          qed
+        qed
+      qed
+    qed
+
+    have RHS: "(\<forall>v2. force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+    proof
+      fix v2
+      show "force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume F2: "force_with_fuel (Suc n') h2 = Some v2"
+        show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+        proof
+          assume NT2: "\<not> is_thunk v2"
+          show "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc (Suc n')) h1 = force_with_fuel (Suc n') h2"
+              using EqThunkSingleStep by auto
+            then have "force_with_fuel (Suc (Suc n')) h1 = Some v2" using F2 by auto
+            then have F2: "forces_to h1 v2" using NT2 forces_to_def by auto
+
+            have "eq v2 v2" by (rule eq.EqSelf)
+            then show ?thesis using F2 by auto
+          qed
+        qed
+      qed
+    qed
+
+    show ?thesis using LHS RHS by auto
+  next
+    case (EqSelf)
+    
+    have LHS: "\<forall>v1. (force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2))"
+    proof
+      fix v1
+      show "force_with_fuel (Suc n') h1 = Some v1 \<longrightarrow> \<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+      proof
+        assume F1: "force_with_fuel (Suc n') h1 = Some v1"
+        show "\<not> is_thunk v1 \<longrightarrow> (\<exists>v2. forces_to h2 v2 \<and> eq v1 v2)"
+        proof
+          assume NT1: "\<not> is_thunk v1"
+          show "\<exists>v2. forces_to h2 v2 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc n') h2 = Some v1" 
+              using EqSelf F1 by auto
+            then have F2: "forces_to h2 v1" using NT1 forces_to_def by auto
+            have "eq v1 v1" by (rule eq.EqSelf)
+            then show ?thesis using F2 by auto
+          qed
+        qed
+      qed
+    qed
+
+    have RHS: "(\<forall>v2. force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2))"
+    proof
+      fix v2
+      show "force_with_fuel (Suc n') h2 = Some v2 \<longrightarrow> \<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+      proof
+        assume F2: "force_with_fuel (Suc n') h2 = Some v2"
+        show "\<not> is_thunk v2 \<longrightarrow> (\<exists>v1. forces_to h1 v1 \<and> eq v1 v2)"
+        proof
+          assume NT2: "\<not> is_thunk v2"
+          show "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2"
+          proof -
+            have "force_with_fuel (Suc n') h1 = Some v2"
+              using EqSelf F2 by auto
+            then have F1: "forces_to h1 v2" using NT2 forces_to_def by auto
+            have "eq v2 v2" by (rule eq.EqSelf)
+            then show ?thesis using F1 by auto
+          qed
+        qed
+      qed
+    qed
+
+    show ?thesis using LHS RHS by auto
+  qed
+qed
+
+lemma force_eq:
+  assumes "eq h1 h2"
+  shows "rel_opt eq (force h1) (force h2)"
+proof (cases "force h1")
+  case None
+  then have None1: "force h1 = None" .
+
+  then show ?thesis
+  proof (cases "force h2")
+    case None
+    then show ?thesis using None1 by auto
+  next
+    case (Some v2)
+    then have "forces_to h2 v2" using force_some by auto
+    then obtain n2 where F2: "force_with_fuel n2 h2 = Some v2" and NT2: "\<not>is_thunk v2"
+      using forces_to_def by auto
+
+    have "\<exists>v1. forces_to h1 v1 \<and> eq v1 v2" 
+      using eq_forces_to_induct assms F2 NT2 by blast
+    then have "\<exists>v1. force h1 = Some v1" using force_def by auto
+    then show ?thesis using None1 by auto
+  qed
+next
+  case (Some v1)
+  then have "forces_to h1 v1" using force_some by auto
+  then obtain n1 where F1: "force_with_fuel n1 h1 = Some v1" and NT1: "\<not> is_thunk v1" 
+    using forces_to_def by auto
+
+  then have "\<exists>v2. forces_to h2 v2 \<and> eq v1 v2" 
+    using eq_forces_to_induct assms F1 NT1 by blast
+  then obtain v2 where "forces_to h2 v2" and EQ: "eq v1 v2" by auto
+  then have F2: "force h2 = Some v2" using force_unique by auto
+
+  show ?thesis using Some F2 EQ by auto
 qed
