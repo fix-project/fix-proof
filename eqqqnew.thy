@@ -1937,83 +1937,6 @@ next
   show ?thesis using Some F2 EQ by auto
 qed
 
-lemma eq_tree_left_step:
-  assumes "eq a b"
-  shows "eq (HTreeHandle (create_tree [a, x]))
-            (HTreeHandle (create_tree [b, x]))"
-proof -
-  have "eq x x" using eq_refl by auto
-  then have "list_all2 eq [a, x] [b, x]" using assms by auto
-  then have "list_all2 eq (get_tree_raw (create_tree [a,x])) (get_tree_raw (create_tree [b,x]))" by simp
-  then show ?thesis by (rule eq.EqTree)
-qed
-
-lemma eq_tree_right_step:
-  assumes "eq a b"
-  shows "eq (HTreeHandle (create_tree [x, a]))
-            (HTreeHandle (create_tree [x, b]))"
-proof -
-  have "eq x x" using eq_refl by auto
-  then have "list_all2 eq [x, a] [x, b]" using assms by auto
-  then have "list_all2 eq (get_tree_raw (create_tree [x, a])) (get_tree_raw (create_tree [x, b]))" by simp
-  then show ?thesis by (rule eq.EqTree)
-qed
-
-lemma rtranclp_tree_left:
-  assumes "rtranclp eq a b"
-  shows   "rtranclp eq (HTreeHandle (create_tree [a, x]))
-                       (HTreeHandle (create_tree [b, x]))"
-  using assms
-proof (induction rule: rtranclp_induct)
-  case base
-  then show ?case by (rule rtranclp.rtrancl_refl)
-next
-  case (step y z)
-  then show ?case
-    by (meson eq_tree_left_step rtranclp.rtrancl_into_rtrancl)
-qed
-
-lemma rtranclp_tree_right:
-  assumes "rtranclp eq a b"
-  shows   "rtranclp eq (HTreeHandle (create_tree [x, a]))
-                       (HTreeHandle (create_tree [x, b]))"
-  using assms
-proof (induction rule: rtranclp_induct)
-  case base
-  then show ?case by (rule rtranclp.rtrancl_refl)
-next
-  case (step y z)
-  then show ?case
-    by (meson eq_tree_right_step rtranclp.rtrancl_into_rtrancl)
-qed
-
-lemma rtranclp_tree2_interleaved:
-  assumes L: "rtranclp eq i1 j1"
-      and R: "rtranclp eq i2 j2"
-  shows "rtranclp eq (HTreeHandle (create_tree [i1, i2]))
-                     (HTreeHandle (create_tree [j1, j2]))"
-proof -
-  have left_walk:
-    "rtranclp eq (HTreeHandle (create_tree [i1, i2]))
-                 (HTreeHandle (create_tree [j1, i2]))"
-    using L by (rule rtranclp_tree_left)
-
-  have right_walk:
-    "rtranclp eq (HTreeHandle (create_tree [j1, i2]))
-                 (HTreeHandle (create_tree [j1, j2]))"
-    using R by (rule rtranclp_tree_right)
-
-  show ?thesis
-    using left_walk right_walk
-    by (rule rtranclp_trans)
-qed
-
-inductive eqstar :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
-base: "eq h1 h2 \<Longrightarrow> eqstar h1 h2"
-| refl: "eqstar h h"
-| sym: "eqstar h1 h2 \<Longrightarrow> eqstar h2 h1"
-| trans: "eqstar h1 h2 \<Longrightarrow> eqstar h2 h3 \<Longrightarrow> eqstar h1 h3"
-
 lemma list_all2_eq_refl:
   "list_all2 eq xs xs"
   using eq_refl
@@ -2051,21 +1974,6 @@ proof -
   then show ?thesis by (rule eq.EqTree)
 qed
 
-lemma rtranclp_tree_update1:
-  assumes "rtranclp eq a b"
-  shows
-    "rtranclp eq (HTreeHandle (create_tree (pre @ a # post)))
-                 (HTreeHandle (create_tree (pre @ b # post)))"
-  using assms
-proof (induction rule: rtranclp_induct)
-  case base
-  then show ?case by (rule rtranclp.rtrancl_refl)
-next
-  case (step y z)
-  then show ?case
-    by (meson eq_tree_update1 rtranclp.rtrancl_into_rtrancl)
-qed
-
 lemma equivclp_tree_update1:
   assumes "equivclp eq a b"
   shows "equivclp eq (HTreeHandle (create_tree (pre @ (a # post))))
@@ -2097,40 +2005,6 @@ next
         (HTreeHandle (create_tree (pre @ z # post)))" by (rule converse_r_into_equivclp)
     show ?case using equivclp_trans[OF step.IH Y] by auto
   qed
-qed
-
-lemma rtranclp_tree_list_all2_prefix:
-  assumes LA: "list_all2 (rtranclp eq) xs ys"
-  shows
-    "rtranclp eq (HTreeHandle (create_tree (pre @ xs)))
-                 (HTreeHandle (create_tree (pre @ ys)))"
-  using LA
-proof (induction xs ys arbitrary: pre rule: list_all2_induct)
-  case Nil
-  then show ?case by (rule rtranclp.rtrancl_refl)
-next
-  case (Cons x xs y ys)
-  have head_step:
-    "rtranclp eq (HTreeHandle (create_tree (pre @ x # xs)))
-                 (HTreeHandle (create_tree (pre @ y # xs)))"
-    using Cons.hyps(1)
-    by (rule rtranclp_tree_update1[where post=xs])
-
-  have tail_steps:
-    "rtranclp eq (HTreeHandle (create_tree ((pre @ [y]) @ xs)))
-                 (HTreeHandle (create_tree ((pre @ [y]) @ ys)))"
-    using Cons.IH[of "pre @ [y]"]
-    by simp
-
-  (* rewrite pre@y#xs as (pre@[y])@xs so we can compose *)
-  have tail_steps':
-    "rtranclp eq (HTreeHandle (create_tree (pre @ y # xs)))
-                 (HTreeHandle (create_tree (pre @ y # ys)))"
-    using tail_steps by simp
-
-  show ?case
-    using head_step tail_steps'
-    by (rule rtranclp_trans)
 qed
 
 lemma equivclp_tree_list_all2_prefix:
@@ -2166,13 +2040,6 @@ next
     using head_step tail_steps'
     by (rule equivclp_trans)
 qed
-
-lemma rtranclp_tree_list_all2:
-  assumes "list_all2 (rtranclp eq) xs ys"
-  shows   "rtranclp eq (HTreeHandle (create_tree xs))
-                       (HTreeHandle (create_tree ys))"
-  using rtranclp_tree_list_all2_prefix[where pre="[]", OF assms]
-  by simp
 
 lemma equivclp_tree_list_all2:
   assumes "list_all2 (equivclp eq) xs ys"
@@ -2230,6 +2097,62 @@ next
   qed
 qed
 
+lemma force_equivclp:
+  assumes "equivclp eq h1 h2"
+  shows "rel_opt (equivclp eq) (force h1) (force h2)"
+  using assms
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case by (cases "force h1") auto
+next
+  case (step y z)
+  then have X: "eq y z \<or> eq z y" by auto
+
+  show ?case
+  proof (cases "force h1")
+    case None 
+    then have None1: "force h1 = None" .
+    then have None2: "force y = None" using step.IH by (cases "force y") auto
+
+    from X have "force z = None"
+    proof
+      assume Y: "eq y z"
+      then have Y: "rel_opt eq (force y) (force z)" using force_eq by auto
+      then show ?thesis using None2 by (cases "force z") auto
+    next
+      assume Y: "eq z y"
+      then have Y: "rel_opt eq (force z) (force y)" using force_eq by auto
+      then show ?thesis using None2 by (cases "force z") auto
+    qed
+    then show ?thesis using None1 by auto
+  next
+    case (Some a1)
+    then obtain a2 where Some2: "force y = Some a2"
+                     and EQ1: "equivclp eq a1 a2"
+      using step.IH by (cases "force y") auto
+
+    from X have "\<exists>a3. force z = Some a3 \<and> equivclp eq a2 a3"
+    proof
+      assume Y: "eq y z"
+      then have Y: "rel_opt eq (force y) (force z)" using force_eq by auto
+      then obtain a3 where "force z = Some a3 \<and> eq a2 a3" using Some2 by (cases "force z") auto
+      then have "force z = Some a3 \<and> equivclp eq a2 a3" using r_into_equivclp by blast
+      then show ?thesis by auto
+    next
+      assume Y: "eq z y"
+      then have Y: "rel_opt eq (force z) (force y)" using force_eq by auto
+      then obtain a3 where "force z = Some a3 \<and> eq a3 a2" using Some2 by (cases "force z") auto
+      then have "force z = Some a3 \<and> equivclp eq a2 a3" using r_into_equivclp by blast
+      then show ?thesis by auto
+    qed
+    then obtain a3 where Some3: "force z = Some a3"
+                     and EQ2: "equivclp eq a2 a3"
+      by auto
+
+    show ?thesis using Some Some3 EQ1 EQ2 equivclp_trans by auto
+  qed
+qed
+
 inductive coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
   CouponBlob:
   "(get_blob_data b1 = get_blob_data b2) \<Longrightarrow> coupon_eq (HBlobHandle b1) (HBlobHandle b2)"
@@ -2246,29 +2169,13 @@ inductive coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
    coupon_eq (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))"
 | CouponThunkForce:
   "coupon_eq (HThunkHandle th1) (HThunkHandle th2) \<Longrightarrow>
-   coupon_eq (HThunkHandle th1) r1 \<Longrightarrow>
-   coupon_eq (HThunkHandle th2) r2 \<Longrightarrow>
+   force (HThunkHandle th1) = Some r1 \<Longrightarrow>
+   force (HThunkHandle th2) = Some r2 \<Longrightarrow>
    coupon_eq r1 r2"
 | CouponSelf:
    "coupon_eq h h"
 | CouponSym:
    "coupon_eq h1 h2 \<Longrightarrow> coupon_eq h2 h1"
-
-theorem coupon_implies_eqstar:
-  assumes "coupon_eq  h1 h2"
-  shows "eqstar h1 h2"
-  using assms
-proof (induction rule: coupon_eq.induct)
-  case (CouponBlob b1 b2)
-  then have "eq (HBlobHandle b1) (HBlobHandle b2) " by (rule eq.EqBlob)
-  then show ?case by (rule eqstar.base)
-next
-  case (CouponTree t1 t2)
-  then have "list_all2 (\<lambda>h1 h2. eqstar h1 h2) (get_tree_raw t1) (get_tree_raw t2)" 
-    by (rule list_all2_mono) auto
-  then show ?case by (rule eqstar.tree)
-next
-  case (CouponForce th r)
   
 
 
