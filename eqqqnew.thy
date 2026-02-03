@@ -1480,6 +1480,12 @@ proof -
   then show ?thesis using endpoint_some[of forces_to h h1] forces_to_deterministic by auto
 qed
 
+lemma force_not_thunk:
+  assumes "force h = Some r"
+  shows "(\<exists>b. r = HBlobHandle b) \<or> (\<exists>t. r = HTreeHandle t)"
+  using  forces_to_not_thunk force_some[OF assms]
+  by auto
+
 lemma execute_some:
   assumes "execute h = Some h1"
   shows "executes_to h h1"
@@ -4074,18 +4080,115 @@ next
   qed
 qed
 
-inductive coupon_force_to :: "ThunkHandle \<Rightarrow> handle \<Rightarrow> bool"
+axiomatization where
+  thunk_for_all_blob:
+    "\<exists>b. h = HBlobHandle b \<Longrightarrow> \<exists>th. think th = Some h"
+
+axiomatization where
+  thunk_for_all_tree:
+    "\<exists>t. h = HTreeHandle t \<Longrightarrow> \<exists>th. think th = Some h"
+
+lemma equivclp_eq_same_kind:
+  assumes "equivclp eq r1 r2"
+  shows "get_type r1 = get_type r2"
+  using assms eq_same_type
+  by (induction rule: equivclp_induct) auto
+
+corollary equivclp_eq_preserve_blob:
+  assumes "equivclp eq (HBlobHandle b1) r2"
+  shows "\<exists>b2. r2 = HBlobHandle b2"
+  using equivclp_eq_same_kind[OF assms]
+  by (cases r2) auto
+
+corollary equivclp_eq_preserve_tree:
+  assumes "equivclp eq (HTreeHandle t1) r2"
+  shows "\<exists>t2. r2 = HTreeHandle t2"
+  using equivclp_eq_same_kind[OF assms]
+  by (cases r2) auto
+
+lemma equivclp_eq_thunk_some_res:
+  assumes "equivclp eq r1 r2"
+  shows "\<And>t1 t2. think t1 = Some r1 \<and> think t2 = Some r2 \<and> ((\<exists>b1. r1 = HBlobHandle b1) \<or> (\<exists>t1. r1 = HTreeHandle t1)) \<longrightarrow> equivclp eq (HThunkHandle t1) (HThunkHandle t2)"
+  using assms
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case
+  proof (intro impI)
+    assume "think t1 = Some r1 \<and> think t2 = Some r1 \<and> ((\<exists>b1. r1 = HBlobHandle b1) \<or> (\<exists>t1. r1 = HTreeHandle t1))"
+    then have "think t1 = Some r1" and "think t2 = Some r1" and "eq r1 r1" using eq_refl by auto
+    then have "eq (HThunkHandle t1) (HThunkHandle t2)" by (rule eq.EqThunkSomeRes)
+    then show "equivclp eq (HThunkHandle t1) (HThunkHandle t2)" using r_into_equivclp by auto
+  qed
+next
+  case (step y z)
+  then show ?case
+  proof (intro impI)
+    assume "think t1 = Some r1 \<and> think t2 = Some z \<and> ((\<exists>b1. r1 = HBlobHandle b1) \<or> (\<exists>t1. r1 = HTreeHandle t1))"
+    then have T1: "think t1 = Some r1"
+          and T2: "think t2 = Some z"
+          and H: "(\<exists>b1. r1 = HBlobHandle b1) \<or> (\<exists>t1. r1 = HTreeHandle t1)"
+      by auto
+
+    have H': "get_type r1 = get_type y"  using step.hyps(1) equivclp_eq_same_kind by auto
+    have "(\<exists>b2. y = HBlobHandle b2) \<or> (\<exists>t2. y = HTreeHandle t2)"
+      using H
+    proof
+      assume "\<exists>b1. r1 = HBlobHandle b1"
+      then show ?thesis using H' by (cases y) auto
+    next
+      assume "\<exists>t1. r1 = HTreeHandle t1"
+      then show ?thesis using H' by (cases y) auto
+    qed
+    then obtain t3 where T3: "think t3 = Some y" using thunk_for_all_blob thunk_for_all_tree by auto
+    then have E13: "equivclp eq (HThunkHandle t1) (HThunkHandle t3)" using T1 step.IH H by auto
+
+    have "eq (HThunkHandle t3) (HThunkHandle t2) \<or> eq (HThunkHandle t2) (HThunkHandle t3)"
+      using step.hyps(2) eq.EqThunkSomeRes T2 T3 by auto
+    then have E32: "equivclp eq (HThunkHandle t3) (HThunkHandle t2)" by auto
+
+    show "equivclp eq (HThunkHandle t1) (HThunkHandle t2)"
+      using E13 E32 equivclp_trans[of eq "(HThunkHandle t1)" "(HThunkHandle t3)" "(HThunkHandle t2)"] by auto
+  qed
+qed
+
+lemma force_to_equivclp_eq:
+  assumes F1: "force t1 = Some r1"
+      and F2: "force t2 = Some r2"
+      and H: "equivclp eq r1 r2"
+    shows "equivclp eq (HThunkHandle t1) (HThunkHandle t2)"
+proof -
+  obtain f1 where "force_with_fuel f1 t1 = Some r1"
+    using F1 force_some forces_to_def by blast
+  then obtain t1' where T1: "think t1' = Some r1"
+                    and E1: "equivclp eq (HThunkHandle t1) (HThunkHandle t1')"
+    using force_with_fuel_to_equivclp_eq by blast
+
+  obtain f2 where "force_with_fuel f2 t2 = Some r2"
+    using F2 force_some forces_to_def by blast
+  then obtain t2' where T2: "think t2' = Some r2"
+                    and E2: "equivclp eq (HThunkHandle t2) (HThunkHandle t2')"
+    using force_with_fuel_to_equivclp_eq by blast
+
+
+  have "equivclp eq (HThunkHandle t1') (HThunkHandle t2')"
+    using H T1 T2 force_not_thunk[OF F1] equivclp_eq_thunk_some_res by auto
+  then have "equivclp eq (HThunkHandle t1) (HThunkHandle t2')"
+    using E1 equivclp_trans[of eq] by auto
+  then show ?thesis using equivclp_sym[OF E2] equivclp_trans[of eq] by auto
+qed
+
+inductive coupon_force :: "ThunkHandle \<Rightarrow> handle \<Rightarrow> bool"
 and coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
   CouponForce:
-  "force t = Some r \<Longrightarrow> coupon_force_to t r"
+  "force t = Some r \<Longrightarrow> coupon_force t r"
 |  CouponBlob:
   "(get_blob_data b1 = get_blob_data b2) \<Longrightarrow> coupon_eq (HBlobHandle b1) (HBlobHandle b2)"
 | CouponTree:
   "list_all2 (\<lambda>h1 h2. coupon_eq h1 h2) (get_tree_raw t1) (get_tree_raw t2) 
    \<Longrightarrow> coupon_eq (HTreeHandle t1) (HTreeHandle t2)"
 | CouponThunk:
-  "coupon_force_to th1 r1 \<Longrightarrow>
-   coupon_force_to th2 r2 \<Longrightarrow>
+  "coupon_force th1 r1 \<Longrightarrow>
+   coupon_force th2 r2 \<Longrightarrow>
    coupon_eq r1 r2 \<Longrightarrow>
    coupon_eq (HThunkHandle th1) (HThunkHandle th2)"
 | CouponThunkTree:
@@ -4093,13 +4196,55 @@ and coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
    coupon_eq (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))"
 | CouponThunkForce:
   "coupon_eq (HThunkHandle th1) (HThunkHandle th2) \<Longrightarrow>
-   coupon_force_to th1 r1 \<Longrightarrow>
-   coupon_force_to th2 r2 \<Longrightarrow>
+   coupon_force th1 r1 \<Longrightarrow>
+   coupon_force th2 r2 \<Longrightarrow>
    coupon_eq r1 r2"
 | CouponSelf:
    "coupon_eq h h"
 | CouponSym:
    "coupon_eq h1 h2 \<Longrightarrow> coupon_eq h2 h1"
+| CouponTrans:
+   "coupon_eq h1 h2 \<Longrightarrow> coupon_eq h2 h3 \<Longrightarrow> coupon_eq h1 h3"
+
+thm coupon_force_coupon_eq.induct[of "\<lambda>th r. force th = Some r"
+        "\<lambda>h1 h2. equivclp eq h1 h2"]
+
+lemma coupon_force_implies_force:
+  "(coupon_force th r \<longrightarrow> force th = Some r) \<and> (coupon_eq h1 h2 \<longrightarrow> equivclp eq h1 h2)"
+proof (induction rule: coupon_force_coupon_eq.induct)
+  case (CouponForce th r)
+  then show ?case by auto
+next
+  case (CouponBlob b1 b2)
+  then show ?case using eq.EqBlob[of b1 b2] r_into_equivclp[of eq "HBlobHandle b1" "HBlobHandle b2"] by auto
+next
+  case (CouponTree t1 t2)
+  let ?t1 = "get_tree_raw t1"
+  let ?t2 = "get_tree_raw t2"
+  have "list_all2 (equivclp eq) ?t1 ?t2" using CouponTree list_all2_mono by auto
+  then show ?case using equivclp_tree_list_all2[of ?t1 ?t2] by auto
+next
+  case (CouponThunk th1 r1 th2 r2)
+  then show ?case using CouponThunk.IH force_to_equivclp_eq by auto
+next
+  case (CouponThunkTree t1 t2)
+  then show ?case using equivclp_thunk by auto
+next
+  case (CouponThunkForce th1 th2 r1 r2)
+  then have F1: "force th1 = Some r1" and F2: "force th2 = Some r2" by auto
+  then have "rel_opt (equivclp eq) (force th1) (force th2)" using CouponThunkForce force_equivclp by blast
+  then show ?case using F1 F2 by auto
+next
+  case (CouponSelf h)
+  then show ?case using eq_refl r_into_equivclp by auto
+next
+  case (CouponSym h1 h2)
+  then show ?case using equivclp_sym[of eq h1 h2] by auto
+next
+  case (CouponTrans h1 h2 h3)
+  then show ?case using equivclp_trans[of eq h1 h2 h3] by auto
+qed
+
   
 
 
