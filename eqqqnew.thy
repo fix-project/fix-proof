@@ -4177,28 +4177,60 @@ proof -
   then show ?thesis using equivclp_sym[OF E2] equivclp_trans[of eq] by auto
 qed
 
-inductive coupon_force :: "ThunkHandle \<Rightarrow> handle \<Rightarrow> bool"
+lemma equivclp_eq_thunk_to_encode:
+  assumes H: "equivclp eq h1 h2"
+      and "\<exists>th1. h1 = HThunkHandle th1"
+  shows "\<exists>th1 th2. h1 = (HThunkHandle th1) \<and> h2 = (HThunkHandle th2) \<and> equivclp eq (HEncodeHandle (create_encode th1)) (HEncodeHandle (create_encode th2))"
+  using assms
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case using eq.EqSelf by auto 
+next
+  case (step y z)
+  then obtain th1 th2 where TH1: "h1 = HThunkHandle th1"
+                        and TH2: "y = HThunkHandle th2"
+                        and EQ: "equivclp eq (HEncodeHandle (create_encode th1))
+                                         (HEncodeHandle (create_encode th2))"
+    by auto
+
+  have "get_type y = get_type z"
+    using step.hyps(2) equivclp_eq_same_kind by blast
+  then obtain th3 where TH3: "z = HThunkHandle th3"
+    using TH2 by (cases z) auto
+  then have EQ1: "equivclp eq (HEncodeHandle (create_encode th2)) (HEncodeHandle (create_encode th3))"
+    using eq.EqEncode TH2 step.hyps(2) r_into_equivclp by auto
+  show ?case using equivclp_trans[OF EQ EQ1] TH1 TH3 by auto
+qed
+
+inductive coupon_force :: "handle \<Rightarrow> handle \<Rightarrow> bool"
+and coupon_storage :: "handle \<Rightarrow> handle \<Rightarrow> bool"
 and coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
   CouponForce:
-  "force t = Some r \<Longrightarrow> coupon_force t r"
-|  CouponBlob:
-  "(get_blob_data b1 = get_blob_data b2) \<Longrightarrow> coupon_eq (HBlobHandle b1) (HBlobHandle b2)"
+  "force t = Some r \<Longrightarrow> coupon_force (HThunkHandle  t) r"
+| CouponStorage:
+  "(get_blob_data b1 = get_blob_data b2) \<Longrightarrow>
+   coupon_storage (HBlobHandle b1) (HBlobHandle b2)"
+| CouponBlob:
+  "coupon_storage h1 h2 \<Longrightarrow> coupon_eq h1 h2"
 | CouponTree:
   "list_all2 (\<lambda>h1 h2. coupon_eq h1 h2) (get_tree_raw t1) (get_tree_raw t2) 
    \<Longrightarrow> coupon_eq (HTreeHandle t1) (HTreeHandle t2)"
 | CouponThunk:
-  "coupon_force th1 r1 \<Longrightarrow>
-   coupon_force th2 r2 \<Longrightarrow>
+  "coupon_force h1 r1 \<Longrightarrow>
+   coupon_force h2 r2 \<Longrightarrow>
    coupon_eq r1 r2 \<Longrightarrow>
-   coupon_eq (HThunkHandle th1) (HThunkHandle th2)"
+   coupon_eq h1 h2"
 | CouponThunkTree:
   "coupon_eq (HTreeHandle t1) (HTreeHandle t2) \<Longrightarrow>
    coupon_eq (HThunkHandle (create_thunk t1)) (HThunkHandle (create_thunk t2))"
 | CouponThunkForce:
-  "coupon_eq (HThunkHandle th1) (HThunkHandle th2) \<Longrightarrow>
-   coupon_force th1 r1 \<Longrightarrow>
-   coupon_force th2 r2 \<Longrightarrow>
+  "coupon_eq h1 h2 \<Longrightarrow>
+   coupon_force h1 r1 \<Longrightarrow>
+   coupon_force h2 r2 \<Longrightarrow>
    coupon_eq r1 r2"
+| CouponEncode:
+  "coupon_eq (HThunkHandle th1) (HThunkHandle th2) \<Longrightarrow>
+   coupon_eq (HEncodeHandle (create_encode th1)) (HEncodeHandle (create_encode th2))"
 | CouponSelf:
    "coupon_eq h h"
 | CouponSym:
@@ -4206,16 +4238,21 @@ and coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
 | CouponTrans:
    "coupon_eq h1 h2 \<Longrightarrow> coupon_eq h2 h3 \<Longrightarrow> coupon_eq h1 h3"
 
-thm coupon_force_coupon_eq.induct[of "\<lambda>th r. force th = Some r"
-        "\<lambda>h1 h2. equivclp eq h1 h2"]
-
-lemma coupon_force_implies_force:
-  "(coupon_force th r \<longrightarrow> force th = Some r) \<and> (coupon_eq h1 h2 \<longrightarrow> equivclp eq h1 h2)"
-proof (induction rule: coupon_force_coupon_eq.induct)
+lemma coupon_sound:
+  "(coupon_force h r \<longrightarrow> (\<exists>th. h = HThunkHandle th \<and> force th = Some r)) \<and> (coupon_storage h1 h2 \<longrightarrow> (\<exists>b1 b2. h1 = HBlobHandle b1 \<and> h2 = HBlobHandle b2 \<and> get_blob_data b1 = get_blob_data b2)) \<and> (coupon_eq h1 h2 \<longrightarrow> equivclp eq h1 h2)"
+proof (induction rule: coupon_force_coupon_storage_coupon_eq.induct)
   case (CouponForce th r)
   then show ?case by auto
 next
-  case (CouponBlob b1 b2)
+  case (CouponStorage b1 b2)
+  then show ?case by auto
+next
+  case (CouponBlob h1 h2)
+  obtain b1 b2 where "h1 = HBlobHandle b1"
+                 and "h2 = HBlobHandle b2"
+                 and "get_blob_data b1 = get_blob_data b2"
+    using CouponBlob.IH
+    by auto
   then show ?case using eq.EqBlob[of b1 b2] r_into_equivclp[of eq "HBlobHandle b1" "HBlobHandle b2"] by auto
 next
   case (CouponTree t1 t2)
@@ -4230,10 +4267,13 @@ next
   case (CouponThunkTree t1 t2)
   then show ?case using equivclp_thunk by auto
 next
-  case (CouponThunkForce th1 th2 r1 r2)
-  then have F1: "force th1 = Some r1" and F2: "force th2 = Some r2" by auto
+  case (CouponThunkForce h1 h2 r1 r2)
+  then obtain th1 th2 where "h1 = HThunkHandle th1" and F1: "force th1 = Some r1" and "h2 = HThunkHandle th2" and F2: "force th2 = Some r2" by auto
   then have "rel_opt (equivclp eq) (force th1) (force th2)" using CouponThunkForce force_equivclp by blast
   then show ?case using F1 F2 by auto
+next 
+  case (CouponEncode th1 th2)
+  then show ?case using equivclp_eq_thunk_to_encode by auto
 next
   case (CouponSelf h)
   then show ?case using eq_refl r_into_equivclp by auto
@@ -4245,12 +4285,331 @@ next
   then show ?case using equivclp_trans[of eq h1 h2 h3] by auto
 qed
 
-  
+lemma equivclp_eq_eval:
+  assumes H: "equivclp eq h1 h2"
+  shows "rel_opt (equivclp eq) (eval h1) (eval h2)"
+  using H
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case by (cases "eval h1") auto
+next
+  case (step y z)
+  have "(rel_opt eq (eval y) (eval z)) \<or> (rel_opt eq (eval z) (eval y))" 
+    using eval_eq step.hyps(2) by auto
+  then have "rel_opt (equivclp eq) (eval y) (eval z)" 
+    using r_into_equivclp by (cases "eval y"; cases "eval z") auto
+  then show ?case using local.step(3) equivclp_trans 
+    by (cases "eval h1"; cases "eval y"; cases "eval z") auto
+qed
 
+lemma equivclp_eq_same_data:
+  assumes H: "equivclp eq h1 h2"
+      and "\<exists>b1. h1 = HBlobHandle b1"
+    shows "\<exists>b1 b2. h1 = HBlobHandle b1 \<and> h2 = HBlobHandle b2 \<and> get_blob_data b1 = get_blob_data b2"
+  using H
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case using assms(2) by auto
+next
+  case (step y z)
+  then obtain b1 b2 where B1: "h1 = HBlobHandle b1"
+                      and B2: "y = HBlobHandle b2"
+                      and EQD: "get_blob_data b1 = get_blob_data b2"
+    by auto
 
-  
+  have "get_type y = get_type z" using eq_same_type step.hyps(2) by auto
+  then obtain b3 where B3: "z = HBlobHandle b3" using B2 by (cases z) auto
+  then have "get_blob_data b2 = get_blob_data b3" using B2 step.hyps(2) get_blob_data_eq by auto
+  then have "get_blob_data b1 = get_blob_data b3" using EQD by auto
+  then show ?case using B1 B3 by auto
+qed
 
+corollary coupon_eq_blob_same_data:
+  assumes "coupon_eq (HBlobHandle b1) (HBlobHandle b2)"
+  shows "get_blob_data b1 = get_blob_data b2"
+proof -
+  let ?h1 = "HBlobHandle b1"
+  let ?h2 = "HBlobHandle b2"
+  have "equivclp eq ?h1 ?h2" using assms coupon_sound by auto
+  then show "get_blob_data b1 = get_blob_data b2" using equivclp_eq_same_data by auto
+qed
 
+datatype coupon_type =
+  Force | Storage | Eq
 
+datatype request_type =
+  Blob | Tree | Thunk | ThunkTree | ThunkForce | Encode | Self | Sym | Trans
 
+record coupon = 
+  type :: coupon_type
+  lhs :: handle
+  rhs :: handle
 
+fun get_coupon_type :: "coupon \<Rightarrow> nat" where
+  "get_coupon_type c =
+   (case (type c) of
+    Force \<Rightarrow> 0
+  | Storage \<Rightarrow> 1
+  | Eq \<Rightarrow> 2)"
+
+consts
+  get_type_api :: "handle \<Rightarrow> nat"
+  get_coupon_type_api :: "coupon \<Rightarrow> nat"
+  is_equal :: "handle \<Rightarrow> handle \<Rightarrow> bool"
+
+axiomatization where
+  get_type_match[simp]:
+  "get_type_api h = get_type h"
+and
+  get_coupon_type_match[simp]:
+  "get_coupon_type_api c = get_coupon_type c"
+and
+  is_equal_match [simp]:
+  "is_equal h1 h2 = (h1 = h2)"
+
+definition is_force_coupon :: "coupon \<Rightarrow> bool" where
+  "is_force_coupon c \<equiv> (get_coupon_type_api c = 0)"
+
+definition is_storage_coupon :: "coupon \<Rightarrow> bool" where
+  "is_storage_coupon c \<equiv> (get_coupon_type_api c = 1)"
+
+definition is_eq_coupon :: "coupon \<Rightarrow> bool" where
+  "is_eq_coupon c \<equiv> (get_coupon_type_api c = 2)"
+
+fun make_coupon :: "request_type \<Rightarrow> coupon list \<Rightarrow> handle option \<Rightarrow> coupon option" where
+  "make_coupon Blob ([c]) None = 
+    (if (is_storage_coupon c) then Some (\<lparr> type = Eq, lhs = (lhs c), rhs = (rhs c) \<rparr>)
+     else None)"
+| "make_coupon Tree xs None =
+    (if (\<forall>c \<in> set xs. is_eq_coupon c) then
+     (let llist = map (\<lambda>c. lhs c) xs in
+      let rlist = map (\<lambda>c. rhs c) xs in
+      Some (\<lparr> type = Eq, lhs = (HTreeHandle (create_tree llist)), rhs = (HTreeHandle (create_tree rlist))\<rparr>))
+     else None)"
+| "make_coupon Thunk (f1 # f2 # e # []) None =
+    (if ((is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (is_eq_coupon e) \<and> is_equal (rhs f1) (lhs e) \<and> is_equal (rhs f2) (rhs e)) then
+     Some (\<lparr> type = Eq, lhs = lhs f1, rhs = lhs f2 \<rparr>) 
+    else None)"
+| "make_coupon ThunkTree (e # []) None =
+    (case (type e) of
+      Eq \<Rightarrow> (case (lhs e) of
+              HTreeHandle t1 \<Rightarrow>
+               (case (rhs e) of
+                HTreeHandle t2 \<Rightarrow> Some (\<lparr> type = Eq, lhs = (HThunkHandle (create_thunk t1)), rhs = (HThunkHandle (create_thunk t2)) \<rparr>)
+               | _ \<Rightarrow> None)
+              | _ \<Rightarrow> None)
+    | _ \<Rightarrow> None)"
+| "make_coupon ThunkForce (e # f1 # f2 # []) None =
+   (if ((is_eq_coupon e) \<and> (is_force_coupon f1) \<and> (is_force_coupon f2) \<and> is_equal (lhs f1) (lhs e) \<and> is_equal (lhs f2) (rhs e)) then
+    Some( \<lparr> type = Eq, lhs = rhs f1, rhs = rhs f2 \<rparr>)
+    else None)"
+| "make_coupon Encode (e # []) None =
+   (if (is_eq_coupon e) then
+    (case (lhs e) of
+      HThunkHandle t1 \<Rightarrow>
+       (case (rhs e) of
+         HThunkHandle t2 \<Rightarrow> Some ( \<lparr> type = Eq, lhs = (HEncodeHandle (create_encode t1)), rhs = (HEncodeHandle (create_encode t2)) \<rparr>)
+        | _ \<Rightarrow> None)
+      | _ \<Rightarrow> None)
+   else None)"
+| "make_coupon Self [] (Some h) =
+   Some ( \<lparr> type = Eq, lhs = h, rhs = h \<rparr> )"
+| "make_coupon Sym (e # []) None =
+   (if (is_eq_coupon e) then
+    Some ( \<lparr> type = Eq, lhs = rhs e, rhs = lhs e \<rparr>)
+   else None)"
+| "make_coupon Trans (e1 # e2 # []) None =
+   (if ((is_eq_coupon e1) \<and> (is_eq_coupon e2) \<and> is_equal (rhs e1) (lhs e2))
+    then Some (\<lparr> type = Eq, lhs = lhs e1, rhs = rhs e2 \<rparr>)
+    else None)"
+| "make_coupon _ _ _ = None"
+
+definition coupon_ok :: "coupon \<Rightarrow> bool" where
+  "coupon_ok c =
+   (case (type c) of
+    Eq \<Rightarrow> coupon_eq (lhs c) (rhs c)
+  | Force \<Rightarrow> coupon_force (lhs c) (rhs c)
+  | Storage \<Rightarrow> coupon_storage (lhs c) (rhs c))"
+
+lemma coupon_ok_eq:
+  assumes OK: "coupon_ok c"
+      and H: "is_eq_coupon c"
+  shows "coupon_eq (lhs c) (rhs c)"
+  using OK H coupon_ok_def is_eq_coupon_def
+  by (cases "type c") auto
+
+lemma make_coupon_sound:
+  assumes All: "list_all coupon_ok coupons"
+      and H: "make_coupon op coupons handles = Some c"
+    shows "coupon_ok c"
+proof (cases op)
+  case Blob
+  then obtain c' xs
+    where "coupons = c' # xs" using H by (cases coupons) auto
+  then have LS: "coupons = [c']" using Blob H by (cases xs) auto
+  then have handles_nil: "handles = None" using H by (cases handles) auto
+  then have Storage: "type c' = Storage" using H Blob LS handles_nil H is_storage_coupon_def by (cases "type c'") auto
+  then have Cdef: "c = \<lparr> type = Eq, lhs = (lhs c'), rhs = (rhs c') \<rparr>" 
+    using H Blob LS handles_nil H Storage is_storage_coupon_def by auto
+  have "coupon_ok c'" using All LS by auto
+  then have "coupon_storage (lhs c') (rhs c')" using coupon_ok_def Storage by auto
+  then have "coupon_eq (lhs c') (rhs c')" using coupon_force_coupon_storage_coupon_eq.CouponBlob by auto
+  then show ?thesis using Cdef coupon_ok_def by auto
+next
+  case Tree
+
+  have handles_nil: "handles = None" using H Tree by (cases handles) auto
+  then show ?thesis  using H Tree handles_nil 
+  proof (cases "\<forall>c \<in> set coupons. is_eq_coupon c") 
+    case False
+    then have "make_coupon op coupons handles = None" using Tree handles_nil by auto
+    then show ?thesis using H Tree handles_nil by auto
+  next
+    case True
+    let ?llist = "map (\<lambda>c. lhs c) coupons"
+    let ?rlist = "map (\<lambda>c. rhs c) coupons"
+    let ?ltree = "HTreeHandle (create_tree ?llist)"
+    let ?rtree = "HTreeHandle (create_tree ?rlist)"
+
+    have "list_all2 coupon_eq ?llist ?rlist" 
+      using True All coupon_ok_eq by (induction coupons) auto
+    then have EQ: "coupon_eq ?ltree ?rtree"
+      using coupon_force_coupon_storage_coupon_eq.CouponTree by auto
+
+    have Cdef: "c = \<lparr> type = Eq, lhs = ?ltree, rhs = ?rtree \<rparr>" using H Tree handles_nil True by auto
+    then show ?thesis using coupon_ok_def Cdef EQ by auto
+  qed
+next
+  case Thunk
+  then obtain f1 xs
+    where "coupons = f1 # xs" using H by (cases coupons) auto
+  then obtain f2 xs
+    where "coupons = f1 # f2 # xs" using H Thunk by (cases xs) auto
+  then obtain e xs
+    where "coupons = f1 # f2 # e # xs" using H Thunk by (cases xs) auto
+  then have LS: "coupons = f1 # f2 # e # []" using H Thunk by (cases xs) auto
+
+  have handles_nil: "handles = None" using H Thunk by (cases handles) auto
+
+  then have X: "((is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (is_eq_coupon e) \<and> (rhs f1 = lhs e) \<and> (rhs f2 = rhs e))" using H Thunk LS by (cases "((is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (is_eq_coupon e) \<and> (rhs f1 = lhs e) \<and> (rhs f2 = rhs e))") auto
+
+  have "coupon_ok f1" using All LS by auto
+  then have F1: "coupon_force (lhs f1) (rhs f1)" using X coupon_ok_def is_force_coupon_def by (cases "type f1") auto
+  have "coupon_ok f2" using All LS by auto
+  then have F2: "coupon_force (lhs f2) (rhs f2)" using X coupon_ok_def is_force_coupon_def by (cases "type f2") auto
+  have "coupon_ok e" using All LS by auto
+  then have E: "coupon_eq (lhs e) (rhs e)" using X coupon_ok_def is_eq_coupon_def by (cases "type e") auto
+
+  then have EQ: "coupon_eq (lhs f1) (lhs f2)" using F1 F2 E X coupon_force_coupon_storage_coupon_eq.CouponThunk by auto
+
+  have Cdef: "c = \<lparr> type = Eq, lhs = (lhs f1), rhs = (lhs f2) \<rparr>" 
+    using H Thunk handles_nil LS X by auto
+  then show ?thesis using coupon_ok_def EQ by auto
+next
+  case ThunkTree
+  then obtain c' xs
+    where "coupons = c' # xs" using H by (cases coupons) auto
+  then have LS: "coupons = [c']" using ThunkTree H by (cases xs) auto
+  then have OK: "coupon_ok c'" using All by auto
+  have handles_nil: "handles = None" using H LS by (cases handles) auto
+
+  have Eq: "type c' = Eq" using H ThunkTree LS handles_nil by (cases "type c'") auto
+  then obtain t1 t2 where T1: "lhs c' = HTreeHandle t1" and T2: "rhs c' = HTreeHandle t2"
+    using H ThunkTree LS handles_nil by (cases "lhs c'"; cases "rhs c'") auto
+  then have EQ: "coupon_eq (HTreeHandle t1) (HTreeHandle t2)" using OK Eq coupon_ok_def by auto
+
+  let ?lhs = "HThunkHandle (create_thunk t1)"
+  let ?rhs = "HThunkHandle (create_thunk t2)"
+
+  have EQ:"coupon_eq ?lhs ?rhs" using EQ coupon_force_coupon_storage_coupon_eq.CouponThunkTree by auto
+
+  have "c = \<lparr> type = Eq, lhs = ?lhs, rhs = ?rhs \<rparr>" 
+    using H ThunkTree handles_nil LS Eq T1 T2 by auto
+  then show ?thesis using EQ coupon_ok_def by auto
+next
+  case ThunkForce
+  then obtain e xs
+    where "coupons = e # xs" using H by (cases coupons) auto
+  then obtain f1 xs
+    where "coupons = e # f1 # xs" using H ThunkForce by (cases xs) auto
+  then obtain f2 xs
+    where "coupons = e # f1 # f2 # xs" using H ThunkForce by (cases xs) auto
+  then have LS: "coupons = e # f1 # f2 # []" using H ThunkForce by (cases xs) auto
+  then have Eok: "coupon_ok e" and F1ok: "coupon_ok f1" and F2ok: "coupon_ok f2" using All by auto
+
+  have handles_nil: "handles = None" using H ThunkForce by (cases handles) auto
+
+  have X: "(is_eq_coupon e) \<and> (is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (lhs f1 = lhs e) \<and> (lhs f2 = rhs e)" using LS handles_nil ThunkForce H by (cases "(is_eq_coupon e) \<and> (is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (lhs f1 = lhs e) \<and> (lhs f2 = rhs e)") auto
+  have E: "coupon_eq (lhs e) (rhs e)" using coupon_ok_def Eok X is_eq_coupon_def by (cases "type e") auto
+  have F1: "coupon_force (lhs f1) (rhs f1)" using coupon_ok_def F1ok X is_force_coupon_def by (cases "type f1") auto
+  have F2: "coupon_force (lhs f2) (rhs f2)" using coupon_ok_def F2ok X is_force_coupon_def by (cases "type f2") auto
+  have EQ: "coupon_eq (rhs f1) (rhs f2)" using E F1 F2 X coupon_force_coupon_storage_coupon_eq.CouponThunkForce by auto
+
+  have "c = \<lparr> type = Eq, lhs = (rhs f1), rhs = (rhs f2) \<rparr>" using H ThunkForce handles_nil LS X by auto
+  then show ?thesis using EQ coupon_ok_def by auto
+next
+  case Encode
+  then obtain c' xs
+    where "coupons = c' # xs" using H by (cases coupons) auto
+  then have LS: "coupons = [c']" using Encode H by (cases xs) auto
+  then have OK: "coupon_ok c'" using All by auto
+  have handles_nil: "handles = None" using H LS by (cases handles) auto
+
+  have Eq: "type c' = Eq" using H Encode LS handles_nil is_eq_coupon_def by (cases "type c'") auto
+  then obtain t1 t2 where T1: "lhs c' = HThunkHandle t1" and T2: "rhs c' = HThunkHandle t2"
+    using H Encode LS handles_nil is_eq_coupon_def by (cases "lhs c'"; cases "rhs c'") auto
+  then have EQ: "coupon_eq (HThunkHandle t1) (HThunkHandle t2)" using OK Eq coupon_ok_def by auto
+
+  let ?lhs = "HEncodeHandle (create_encode t1)"
+  let ?rhs = "HEncodeHandle (create_encode t2)"
+
+  have EQ:"coupon_eq ?lhs ?rhs" using EQ coupon_force_coupon_storage_coupon_eq.CouponEncode by auto
+
+  have "c = \<lparr> type = Eq, lhs = ?lhs, rhs = ?rhs \<rparr>" 
+    using H Encode handles_nil LS Eq T1 T2 is_eq_coupon_def by auto
+  then show ?thesis using EQ coupon_ok_def by auto
+next
+  case Self
+  then obtain h
+    where handles_some: "handles = Some h" using H by (cases handles) auto
+  then have coupons_nil: "coupons = []" using H by (cases coupons) auto
+  then have Cdef: "c = \<lparr> type = Eq, lhs = h, rhs = h \<rparr>" using handles_some Self H by auto
+
+  have "coupon_eq h h" using coupon_force_coupon_storage_coupon_eq.CouponSelf by auto
+  then show ?thesis using coupon_ok_def Cdef by auto
+next
+  case Sym
+  then obtain c' xs
+    where "coupons = c' # xs" using H by (cases coupons) auto
+  then have LS: "coupons = [c']" using Sym H by (cases xs) auto
+  then have OK: "coupon_ok c'" using All by auto
+  have handles_nil: "handles = None" using H LS by (cases handles) auto
+
+  have Eq: "type c' = Eq" using H Sym LS handles_nil is_eq_coupon_def by (cases "type c'") auto
+  then have "coupon_eq (lhs c') (rhs c')" using OK coupon_ok_def by auto
+  then have EQ: "coupon_eq (rhs c') (lhs c')" using coupon_force_coupon_storage_coupon_eq.CouponSym by auto
+
+  have "c = \<lparr> type = Eq, lhs = (rhs c'), rhs = (lhs c') \<rparr>" using H Sym LS handles_nil Eq is_eq_coupon_def by auto
+  then show ?thesis using EQ coupon_ok_def by auto
+next
+  case Trans
+  then obtain e1 xs
+    where "coupons = e1 # xs" using H by (cases coupons) auto
+  then obtain e2 xs
+    where "coupons = e1 # e2 # xs" using H Trans by (cases xs) auto
+  then have LS: "coupons = e1 # e2 # []" using H Trans by (cases xs) auto
+  then have Ok1: "coupon_ok e1" and Ok2: "coupon_ok e2" using All by auto
+
+  have handles_nil: "handles = None" using H Trans by (cases handles) auto
+
+  have X: "(is_eq_coupon e1) \<and> (is_eq_coupon e2) \<and> (rhs e1 = lhs e2)"
+    using H Trans LS handles_nil
+    by (cases "(is_eq_coupon e1) \<and> (is_eq_coupon e2) \<and> (rhs e1 = lhs e2)")  auto
+  have E1: "coupon_eq (lhs e1) (rhs e1)" using X Ok1 coupon_ok_def is_eq_coupon_def by (cases "type e1") auto
+  have E2: "coupon_eq (lhs e2) (rhs e2)" using X Ok2 coupon_ok_def is_eq_coupon_def by (cases "type e2") auto
+  have EQ: "coupon_eq (lhs e1) (rhs e2)" using E1 E2 X coupon_force_coupon_storage_coupon_eq.CouponTrans by auto
+
+  have "c = \<lparr> type = Eq, lhs = (lhs e1), rhs = (rhs e2) \<rparr>"
+    using H Trans handles_nil LS X by auto
+  then show ?thesis using EQ coupon_ok_def by auto
+qed 
