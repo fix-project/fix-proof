@@ -4352,29 +4352,15 @@ fun get_coupon_type :: "coupon \<Rightarrow> nat" where
   | Storage \<Rightarrow> 1
   | Eq \<Rightarrow> 2)"
 
-consts
-  get_type_api :: "handle \<Rightarrow> nat"
-  get_coupon_type_api :: "coupon \<Rightarrow> nat"
-  is_equal :: "handle \<Rightarrow> handle \<Rightarrow> bool"
-
-axiomatization where
-  get_type_match[simp]:
-  "get_type_api h = get_type h"
-and
-  get_coupon_type_match[simp]:
-  "get_coupon_type_api c = get_coupon_type c"
-and
-  is_equal_match [simp]:
-  "is_equal h1 h2 = (h1 = h2)"
 
 definition is_force_coupon :: "coupon \<Rightarrow> bool" where
-  "is_force_coupon c \<equiv> (get_coupon_type_api c = 0)"
+  "is_force_coupon c \<equiv> (get_coupon_type c = 0)"
 
 definition is_storage_coupon :: "coupon \<Rightarrow> bool" where
-  "is_storage_coupon c \<equiv> (get_coupon_type_api c = 1)"
+  "is_storage_coupon c \<equiv> (get_coupon_type c = 1)"
 
 definition is_eq_coupon :: "coupon \<Rightarrow> bool" where
-  "is_eq_coupon c \<equiv> (get_coupon_type_api c = 2)"
+  "is_eq_coupon c \<equiv> (get_coupon_type c = 2)"
 
 fun make_coupon :: "request_type \<Rightarrow> coupon list \<Rightarrow> handle option \<Rightarrow> coupon option" where
   "make_coupon Blob ([c]) None = 
@@ -4387,7 +4373,7 @@ fun make_coupon :: "request_type \<Rightarrow> coupon list \<Rightarrow> handle 
       Some (\<lparr> type = Eq, lhs = (HTreeHandle (create_tree llist)), rhs = (HTreeHandle (create_tree rlist))\<rparr>))
      else None)"
 | "make_coupon Thunk (f1 # f2 # e # []) None =
-    (if ((is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (is_eq_coupon e) \<and> is_equal (rhs f1) (lhs e) \<and> is_equal (rhs f2) (rhs e)) then
+    (if ((is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (is_eq_coupon e) \<and> (rhs f1 = lhs e) \<and> (rhs f2 = rhs e)) then
      Some (\<lparr> type = Eq, lhs = lhs f1, rhs = lhs f2 \<rparr>) 
     else None)"
 | "make_coupon ThunkTree (e # []) None =
@@ -4400,7 +4386,7 @@ fun make_coupon :: "request_type \<Rightarrow> coupon list \<Rightarrow> handle 
               | _ \<Rightarrow> None)
     | _ \<Rightarrow> None)"
 | "make_coupon ThunkForce (e # f1 # f2 # []) None =
-   (if ((is_eq_coupon e) \<and> (is_force_coupon f1) \<and> (is_force_coupon f2) \<and> is_equal (lhs f1) (lhs e) \<and> is_equal (lhs f2) (rhs e)) then
+   (if ((is_eq_coupon e) \<and> (is_force_coupon f1) \<and> (is_force_coupon f2) \<and> (lhs f1 = lhs e) \<and> (lhs f2 = rhs e)) then
     Some( \<lparr> type = Eq, lhs = rhs f1, rhs = rhs f2 \<rparr>)
     else None)"
 | "make_coupon Encode (e # []) None =
@@ -4419,7 +4405,7 @@ fun make_coupon :: "request_type \<Rightarrow> coupon list \<Rightarrow> handle 
     Some ( \<lparr> type = Eq, lhs = rhs e, rhs = lhs e \<rparr>)
    else None)"
 | "make_coupon Trans (e1 # e2 # []) None =
-   (if ((is_eq_coupon e1) \<and> (is_eq_coupon e2) \<and> is_equal (rhs e1) (lhs e2))
+   (if ((is_eq_coupon e1) \<and> (is_eq_coupon e2) \<and> (rhs e1 = lhs e2))
     then Some (\<lparr> type = Eq, lhs = lhs e1, rhs = rhs e2 \<rparr>)
     else None)"
 | "make_coupon _ _ _ = None"
@@ -4613,3 +4599,356 @@ next
     using H Trans handles_nil LS X by auto
   then show ?thesis using EQ coupon_ok_def by auto
 qed 
+
+(* make_coupon related api functions *)
+
+consts
+  (* coupon-related ones *)
+  is_coupon :: "handle \<Rightarrow> bool"
+  create_eq_coupon :: "handle \<Rightarrow> handle \<Rightarrow> handle"
+  get_coupon_lhs :: "handle \<Rightarrow> handle option"
+  get_coupon_rhs :: "handle \<Rightarrow> handle option"
+  get_coupon_type_api :: "handle \<Rightarrow> nat"
+
+  (* typeless Fix apis *)
+  get_type_api :: "handle \<Rightarrow> nat"
+  get_tree_size_api :: "handle \<Rightarrow> nat option"
+  get_tree_data_api :: "handle \<Rightarrow> nat \<Rightarrow> handle option"
+  create_thunk_api :: "handle \<Rightarrow> handle option"
+  create_encode_api :: "handle \<Rightarrow> handle option"
+
+  is_equal :: "handle \<Rightarrow> handle \<Rightarrow> bool"
+
+axiomatization where
+  create_coupon_is_coupon[simp]:
+  "is_coupon (create_eq_coupon l r) = True"
+and
+  get_coupon_lhs[simp]:
+  "get_coupon_lhs (create_eq_coupon l r) = Some l"
+and
+  get_coupon_rhs[simp]:
+  "get_coupon_rhs (create_eq_coupon l r) = Some r"
+and
+  get_coupon_type_eq[simp]:
+  "get_coupon_type_api (create_eq_coupon l r) = 2"
+
+definition is_force_coupon_api :: "handle \<Rightarrow> bool" where
+  "is_force_coupon_api c \<equiv> (is_coupon c \<and> get_coupon_type_api c = 0)"
+
+definition is_storage_coupon_api :: "handle \<Rightarrow> bool" where
+  "is_storage_coupon_api c \<equiv> (is_coupon c \<and> get_coupon_type_api c = 1)"
+
+definition is_eq_coupon_api :: "handle \<Rightarrow> bool" where
+  "is_eq_coupon_api c \<equiv> (is_coupon c \<and> get_coupon_type_api c = 2)"
+
+axiomatization where
+  get_type_match[simp]:
+  "get_type_api h = get_type h"
+and
+  get_tree_data_api_match[simp]:
+  "get_tree_data_api (HTreeHandle t) i = (if i < length (get_tree_raw t) then Some (get_tree_data t i) else None)"
+and
+  get_tree_size_api_match[simp]:
+  "get_tree_size_api (HTreeHandle t) = Some (get_tree_size t)"
+and
+  get_tree_data_api_blob[simp]:
+  "get_tree_data_api (HBlobHandle b) i = None"
+and
+  get_tree_data_api_encode[simp]:
+  "get_tree_data_api (HEncodeHandle e) i = None"
+and
+  get_tree_data_api_thunk[simp]:
+  "get_tree_data_api (HThunkHandle th) i = None"
+and
+  get_tree_size_api_blob[simp]:
+  "get_tree_size_api (HBlobHandle b) = None"
+and
+  get_tree_size_api_encode[simp]:
+  "get_tree_size_api (HEncodeHandle e) = None"
+and
+  get_tree_size_api_thunk[simp]:
+  "get_tree_size_api (HThunkHandle th) = None"
+and
+  create_thunk_api_match[simp]:
+  "create_thunk_api (HTreeHandle t) = Some (HThunkHandle (create_thunk t))"
+and
+  create_thunk_api_blob[simp]:
+  "create_thunk_api (HBlobHandle b) = None"
+and
+  create_thunk_api_encode[simp]:
+  "create_thunk_api (HEncodeHandle e) = None"
+and
+  create_thunk_api_thunk[simp]:
+  "create_thunk_api (HThunkHandle th) = None"
+and
+  create_encode_api_match[simp]:
+  "create_encode_api (HThunkHandle th) = Some (HEncodeHandle (create_encode th))"
+and
+  create_encode_api_blob[simp]:
+  "create_encode_api (HBlobHandle b) = None"
+and
+  create_encode_api_tree[simp]:
+  "create_encode_api (HTreeHandle t) = None"
+and
+  create_encode_api_encode[simp]:
+  "create_encode_api (HEncodeHandle e) = None"
+and
+  is_equal_match [simp]:
+  "is_equal h1 h2 = (h1 = h2)"
+
+definition raw_coupon_ok :: "handle \<Rightarrow> bool" where
+  "raw_coupon_ok h =
+   (if (is_coupon h) then
+    (case (get_coupon_lhs h, get_coupon_rhs h) of
+       (Some l, Some r) \<Rightarrow> 
+        (if (is_force_coupon_api h) then
+           coupon_force l r
+         else if (is_storage_coupon_api h) then
+           coupon_storage l r
+         else if (is_eq_coupon_api h) then
+           coupon_eq l r
+         else False)
+      | _ \<Rightarrow> False)
+   else False)"
+
+fun make_coupon_self :: "handle \<Rightarrow> handle option" where
+  "make_coupon_self h = Some (create_eq_coupon h h)"
+
+lemma those_length:
+  "those (map f xs) = Some ys \<Longrightarrow> length xs = length ys"
+proof (induction xs arbitrary: ys)
+  case Nil
+  then show ?case by auto
+next
+  case (Cons h t)
+  then obtain x' where H: "f h = Some x'" by (cases "f h") auto
+  then obtain xs' where T: "those (map f t) = Some xs'" using Cons by auto
+  then have Consys: "ys = x' # xs'" using H T Cons by auto
+
+  have "length xs' = length t" using Cons.IH T by auto
+  then have "length ys = length (h # t)" using Consys by auto
+  then show ?case using Cons by auto
+qed
+
+lemma those_nth:
+  "those (map f xs) = Some ys \<Longrightarrow> i < length xs \<Longrightarrow> Some (ys ! i) = f (xs ! i)"
+proof (induction xs arbitrary: ys i)
+  case Nil
+  then show ?case by auto
+next
+  case (Cons h t)
+  then obtain x' where H: "f h = Some x'" by (cases "f h") auto
+  then obtain xs' where T: "those (map f t) = Some xs'" using Cons by auto
+  then have Consys: "ys = x' # xs'" using H T Cons by auto
+  then show ?case using H T Cons Consys by (cases "i") auto
+qed
+
+(* make_coupon_raw: request_type \<Rightarrow> premises \<Rightarrow> lhs \<Rightarrow> rhs \<Rightarrow> handle option *)
+fun make_coupon_raw :: "request_type \<Rightarrow> handle list \<Rightarrow> handle \<Rightarrow> handle \<Rightarrow> handle option" where
+  "make_coupon_raw Blob ([c]) l r =
+   (if (is_storage_coupon_api c) 
+    then (case (get_coupon_lhs c, get_coupon_rhs c) of
+     (Some l', Some r') \<Rightarrow> (if ( is_equal l l' \<and> is_equal r r') then Some (create_eq_coupon l r)
+                                                                else None)
+    | _ \<Rightarrow> None)
+    else None)"
+| "make_coupon_raw Tree xs l r =
+   (if (\<forall>c \<in> set xs. is_eq_coupon_api c) then
+    (let lhs = those (map (\<lambda>c. get_coupon_lhs c) xs) in
+     let rhs = those (map (\<lambda>c. get_coupon_rhs c) xs) in
+     (case (lhs, rhs) of
+      (Some llist, Some rlist) \<Rightarrow> 
+        (if (get_tree_size_api l = Some (length llist) \<and> get_tree_size_api r = Some (length rlist))   then
+          (if (\<forall>i. (i < length llist \<longrightarrow>
+              (case (get_tree_data_api l i, get_tree_data_api r i) of
+                 (Some h1, Some h2) \<Rightarrow> (is_equal h1 (llist ! i)) \<and> is_equal h2 (rlist ! i)
+                | _ \<Rightarrow> False))) then
+            Some (create_eq_coupon l r)
+          else None)
+        else None)
+     | _ \<Rightarrow> None))
+    else None)"
+| "make_coupon_raw Thunk (f1 # f2 # e # []) l r =
+   (if ((is_force_coupon_api f1) \<and> (is_force_coupon_api f2) \<and> (is_eq_coupon_api e)) 
+    then
+     (case (get_coupon_lhs f1, get_coupon_rhs f1, get_coupon_lhs f2, get_coupon_rhs f2,  get_coupon_lhs e, get_coupon_rhs e) of
+      (Some f1l, Some f1r, Some f2l, Some f2r, Some el, Some er) \<Rightarrow>
+         (if (is_equal f1r el \<and> is_equal f2r er) then
+          (if (is_equal f1r l \<and> is_equal f2l r) then Some (create_eq_coupon l r) else None)
+          else None)
+     | _ \<Rightarrow> None)
+    else None)"
+| "make_coupon_raw ThunkTree ([e]) l r =
+   (if (is_eq_coupon_api e) then
+    (case (get_coupon_lhs e, get_coupon_rhs e) of
+     (Some l, Some r) \<Rightarrow> 
+       (case (create_thunk_api l, create_thunk_api r) of
+         (Some l', Some r') \<Rightarrow> 
+         (if (is_equal l l' \<and> is_equal r r') then Some(create_eq_coupon l' r') else None)
+        | _ \<Rightarrow> None)
+     | _ \<Rightarrow> None)
+   else None)"
+| "make_coupon_raw ThunkForce (e # f1 # f2 # []) l r =
+   (if ((is_eq_coupon_api e) \<and> (is_force_coupon_api f1) \<and> (is_force_coupon_api f2))
+    then
+    (case (get_coupon_lhs e, get_coupon_rhs e, get_coupon_lhs f1, get_coupon_rhs f1, get_coupon_lhs f2, get_coupon_rhs f2) of
+     (Some el, Some er, Some f1l, Some f1r, Some f2l, Some f2r) \<Rightarrow>
+        (if (is_equal f1l el \<and> is_equal f2l er \<and> is_equal f1r l \<and> is_equal f2l r) then
+         Some (create_eq_coupon l r)
+        else None)
+     | _ \<Rightarrow> None)
+   else None)"
+| "make_coupon_raw Encode (e # []) l r =
+   (if (is_eq_coupon_api e) then
+     (case (get_coupon_lhs e, get_coupon_rhs e) of 
+       (Some l, Some r) \<Rightarrow>
+        (case (create_encode_api l, create_encode_api r) of
+          (Some l', Some r') \<Rightarrow> 
+            (if (is_equal l l' \<and> is_equal r r') then Some (create_eq_coupon l' r') else None)
+        | _ \<Rightarrow> None)
+     | _ \<Rightarrow> None)
+    else None)"
+| "make_coupon_raw Sym (e # []) l r =
+   (if (is_eq_coupon_api e) then
+     (case (get_coupon_lhs e, get_coupon_rhs e) of
+      (Some l', Some r') \<Rightarrow> 
+        (if (is_equal r' l \<and> is_equal l' r) then Some (create_eq_coupon l r) else None)
+     | _ \<Rightarrow> None)
+   else None)"
+| "make_coupon_raw Trans (e1 # e2 # []) l r =
+   (if (is_eq_coupon_api e1 \<and> is_eq_coupon_api e2) then
+     (case (get_coupon_lhs e1, get_coupon_rhs e1, get_coupon_lhs e2, get_coupon_rhs e2) of
+       (Some e1l, Some e1r, Some e2l, Some e2r) \<Rightarrow>
+         (if (is_equal e1r e2l \<and> is_equal l e1l \<and> is_equal r e2r) then
+           Some (create_eq_coupon l r)
+          else None)
+      | _ \<Rightarrow> None)
+    else None)"
+| "make_coupon_raw Self [] l r =
+   (if (is_equal l r) then Some (create_eq_coupon l r) else None)"
+| "make_coupon_raw _ _ _ _ = None"
+
+lemma make_coupon_raw_sound:
+  assumes All: "list_all raw_coupon_ok coupons"
+      and   H: "make_coupon_raw op coupons l r = Some c"
+    shows "raw_coupon_ok c"
+proof (cases op)
+  case Blob
+  then obtain c' xs where "coupons = c' # xs" using H by (cases coupons) auto
+  then have LS: "coupons = [c']" using Blob H by (cases xs) auto
+  then have ISS: "is_storage_coupon_api c'" using Blob H by (cases "is_storage_coupon_api c'") auto
+  then have ISC: "is_coupon c'" using is_storage_coupon_api_def by auto
+
+  have NOTF: "\<not> is_force_coupon_api c'" using ISS is_storage_coupon_api_def is_force_coupon_api_def by auto
+
+  have Ok: "raw_coupon_ok c'" using All LS by auto
+  then have "\<exists>l r. (get_coupon_lhs c', get_coupon_rhs c') = (Some l, Some r)" using ISS ISC raw_coupon_ok_def by (cases "get_coupon_lhs c'"; cases "get_coupon_rhs c'") auto
+  then obtain l' r' where Some1: "get_coupon_lhs c' = Some l'" and Some2: "get_coupon_rhs c' = Some r'" by blast
+  then have "coupon_storage l' r'" using ISS ISC NOTF Ok raw_coupon_ok_def by auto
+  then have EQ: "coupon_eq l' r'" using coupon_force_coupon_storage_coupon_eq.CouponBlob by auto
+
+  have "is_equal l l' \<and> is_equal r r'" using H Blob LS ISS Some1 Some2 by (cases "is_equal l l' \<and> is_equal r r'") auto
+  then have "c = create_eq_coupon l r" and EQ: "coupon_eq l r" using H Blob LS ISS Some1 Some2 EQ by auto
+
+  then have "is_coupon c" and "is_eq_coupon_api c" and "\<not>is_force_coupon_api c" and "\<not>is_storage_coupon_api c" and "get_coupon_lhs c = Some l" and "get_coupon_rhs c = Some r" using is_eq_coupon_api_def is_force_coupon_api_def is_storage_coupon_api_def by auto
+  then show ?thesis using EQ raw_coupon_ok_def by auto
+next
+  case Tree
+  then have A: "(\<forall>c \<in> set coupons. is_eq_coupon_api c)" 
+    using H by (cases "\<forall>c \<in> set coupons. is_eq_coupon_api c") auto 
+  then obtain llist rlist where S1: "those (map (\<lambda>c. get_coupon_lhs c) coupons) = Some llist"
+                            and S2: "those (map (\<lambda>c. get_coupon_rhs c) coupons) = Some rlist"
+    using H Tree by (cases "(those (map (\<lambda>c. get_coupon_lhs c) coupons))";
+                     cases "those (map (\<lambda>c. get_coupon_rhs c) coupons)") auto
+
+
+  have LEN: "get_tree_size_api l = Some (length llist) \<and> get_tree_size_api r = Some (length rlist)"
+    using Tree A S1 S2 H
+    by (cases "get_tree_size_api l = Some (length llist) \<and> get_tree_size_api r = Some (length rlist)") auto
+
+  then have EQUAL: "\<forall>i<length llist.
+                case get_tree_data_api l i of None \<Rightarrow> False
+                | Some h1 \<Rightarrow>
+                    case get_tree_data_api r i of None \<Rightarrow> False
+                    | Some h2 \<Rightarrow> is_equal h1 (llist ! i) \<and> is_equal h2 (rlist ! i)"
+    using Tree A S1 S2 H by (cases "\<forall>i<length llist.
+                case get_tree_data_api l i of None \<Rightarrow> False
+                | Some h1 \<Rightarrow>
+                    case get_tree_data_api r i of None \<Rightarrow> False
+                    | Some h2 \<Rightarrow> is_equal h1 (llist ! i) \<and> is_equal h2 (rlist ! i)") auto
+
+  then have OUTPUT: "c = create_eq_coupon l r" using Tree A S1 S2 H LEN by auto
+
+  obtain t1 t2 where Tree1: "l = HTreeHandle t1" and Tree2: "r = HTreeHandle t2" 
+    using LEN by (cases l; cases r) auto
+  then have LEN: "get_tree_size t1 = length llist" and LEN2: "get_tree_size t2 = length rlist" 
+    using LEN by auto
+
+  have L: "length coupons = length llist" using S1 those_length by auto
+  have "length coupons = length rlist" using S2 those_length by auto
+  then have L': "length llist = length rlist" using L by auto
+
+  let ?l = "length llist"
+  have L1: "get_tree_size t1 = ?l" 
+   and L2: "length rlist = ?l" 
+   and L3: "length coupons = ?l"  using LEN L L' 
+    by auto
+  then have L1: "length (get_tree_raw t1) = ?l"
+        and L4: "length (get_tree_raw t2) = ?l" using LEN2 get_tree_size_def by auto
+
+  have "\<forall>i<?l. coupon_eq (get_tree_data t1 i) (get_tree_data t2 i)"
+  proof (intro allI impI)
+    fix i
+    assume VL: "i < ?l"
+    then have OK: "raw_coupon_ok (coupons ! i)" 
+      using All L3 list_all_length[of raw_coupon_ok coupons] by auto
+
+    have ISE: "is_eq_coupon_api (coupons ! i)" using VL A L3 by auto
+    then obtain l' r' where LHS: "get_coupon_lhs (coupons ! i) = Some l'" 
+                        and RHS: "get_coupon_rhs (coupons ! i) =  Some r'" 
+      using raw_coupon_ok_def is_eq_coupon_api_def OK 
+      by (cases "get_coupon_lhs (coupons ! i)"; cases "get_coupon_rhs (coupons ! i)") auto
+    then have EQ: "coupon_eq l' r'" 
+      using raw_coupon_ok_def is_eq_coupon_api_def is_force_coupon_api_def is_storage_coupon_api_def OK ISE by auto
+
+    have LI: "llist ! i = l'" using LHS S1 VL those_nth[of get_coupon_lhs coupons llist i] L3 by auto
+    have RI: "rlist ! i = r'" using RHS S2 VL those_nth[of get_coupon_rhs coupons rlist i] L3 by auto
+
+    obtain l'' r'' where "get_tree_data_api l i = Some l''"
+                     and "get_tree_data_api r i = Some r''"
+                     and EQUAL1: "is_equal l'' (llist ! i)"
+                     and EQUAL2: "is_equal r'' (rlist ! i)"
+      using EQUAL VL by (cases "get_tree_data_api l i"; cases "get_tree_data_api r i") auto
+    then have "get_tree_data t1 i =  l''" and "get_tree_data t2 i = r''" 
+      using VL Tree1 Tree2 L1 L4 by auto
+    then show "coupon_eq (get_tree_data t1 i) (get_tree_data t2 i)"
+      using EQ EQUAL1 EQUAL2 LI RI by auto
+  qed
+
+  then have "list_all2 coupon_eq (get_tree_raw t1) (get_tree_raw t2)" 
+    using L1 L4 get_tree_data_def list_all2_all_nthI[of "get_tree_raw t1" "get_tree_raw t2"] by auto
+  then have "coupon_eq l r" using Tree1 Tree2 coupon_force_coupon_storage_coupon_eq.CouponTree
+    by auto
+  then show ?thesis using OUTPUT raw_coupon_ok_def is_eq_coupon_api_def is_storage_coupon_api_def is_force_coupon_api_def by auto
+next
+  case Thunk
+  then show ?thesis sorry
+next
+  case ThunkTree
+  then show ?thesis sorry
+next
+  case ThunkForce
+  then show ?thesis sorry
+next
+  case Encode
+  then show ?thesis sorry
+next
+  case Self
+  then show ?thesis sorry
+next
+  case Sym
+  then show ?thesis sorry
+next
+  case Trans
+  then show ?thesis sorry
+qed
