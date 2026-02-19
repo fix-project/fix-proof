@@ -4774,17 +4774,17 @@ fun make_coupon_raw :: "request_type \<Rightarrow> handle list \<Rightarrow> han
      (case (get_coupon_lhs f1, get_coupon_rhs f1, get_coupon_lhs f2, get_coupon_rhs f2,  get_coupon_lhs e, get_coupon_rhs e) of
       (Some f1l, Some f1r, Some f2l, Some f2r, Some el, Some er) \<Rightarrow>
          (if (is_equal f1r el \<and> is_equal f2r er) then
-          (if (is_equal f1r l \<and> is_equal f2l r) then Some (create_eq_coupon l r) else None)
+          (if (is_equal f1l l \<and> is_equal f2l r) then Some (create_eq_coupon l r) else None)
           else None)
      | _ \<Rightarrow> None)
     else None)"
 | "make_coupon_raw ThunkTree ([e]) l r =
    (if (is_eq_coupon_api e) then
     (case (get_coupon_lhs e, get_coupon_rhs e) of
-     (Some l, Some r) \<Rightarrow> 
-       (case (create_thunk_api l, create_thunk_api r) of
-         (Some l', Some r') \<Rightarrow> 
-         (if (is_equal l l' \<and> is_equal r r') then Some(create_eq_coupon l' r') else None)
+     (Some l', Some r') \<Rightarrow> 
+       (case (create_thunk_api l', create_thunk_api r') of
+         (Some l'', Some r'') \<Rightarrow> 
+         (if (is_equal l l'' \<and> is_equal r r'') then Some(create_eq_coupon l r) else None)
         | _ \<Rightarrow> None)
      | _ \<Rightarrow> None)
    else None)"
@@ -4932,10 +4932,81 @@ next
   then show ?thesis using OUTPUT raw_coupon_ok_def is_eq_coupon_api_def is_storage_coupon_api_def is_force_coupon_api_def by auto
 next
   case Thunk
-  then show ?thesis sorry
+  then obtain f1 xs
+    where "coupons = f1 # xs" using H by (cases coupons) auto
+  then obtain f2 xs
+    where "coupons = f1 # f2 # xs" using H Thunk by (cases xs) auto
+  then obtain e xs
+    where "coupons = f1 # f2 # e # xs" using H Thunk by (cases xs) auto
+  then have LS: "coupons = f1 # f2 # e # []" using H Thunk by (cases xs) auto
+
+  have COUPON: "(is_force_coupon_api f1) \<and> (is_force_coupon_api f2) \<and> (is_eq_coupon_api e)"
+    using H Thunk LS
+    by (cases "(is_force_coupon_api f1) \<and> (is_force_coupon_api f2) \<and> (is_eq_coupon_api e)") auto
+
+  then obtain f1l f1r f2l f2r el er where L1: "get_coupon_lhs f1 = Some f1l"
+                                      and R1: "get_coupon_rhs f1 = Some f1r"
+                                      and L2: "get_coupon_lhs f2 = Some f2l"
+                                      and R2: "get_coupon_rhs f2 = Some f2r"
+                                      and LE: "get_coupon_lhs e = Some el"
+                                      and RE: "get_coupon_rhs e = Some er"
+    using H Thunk LS
+    by (cases "get_coupon_lhs f1"; cases "get_coupon_rhs f1"; cases "get_coupon_lhs f2"; cases "get_coupon_rhs f2"; cases "get_coupon_lhs e"; cases "get_coupon_rhs e") auto
+
+  then have EQL: "is_equal f1r el \<and> is_equal f2r er"
+    using H Thunk LS COUPON
+    by (cases "is_equal f1r el \<and> is_equal f2r er") auto
+  then have EQIN: "is_equal f1l l \<and> is_equal f2l r"
+    using H Thunk LS COUPON L1 R1 L2 R2 LE RE
+    by (cases "is_equal f1l l \<and> is_equal f2l r") auto
+  then have OUTPUT: "c = create_eq_coupon l r" 
+    using H Thunk LS COUPON L1 R1 L2 R2 LE RE EQL by auto
+
+  have "raw_coupon_ok f1" using All LS by auto
+  then have F1: "coupon_force f1l f1r" 
+    using COUPON raw_coupon_ok_def is_force_coupon_api_def L1 R1 by auto
+
+  have "raw_coupon_ok f2" using All LS by auto
+  then have F2: "coupon_force f2l f2r"
+    using COUPON raw_coupon_ok_def is_force_coupon_api_def L2 R2 by auto
+
+  have "raw_coupon_ok e" using All LS by auto
+  then have E: "coupon_eq f1r f2r"
+    using COUPON raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def LE RE EQL by auto
+
+  have "coupon_eq f1l f2l" using coupon_force_coupon_storage_coupon_eq.CouponThunk[OF F1 F2 E] by auto
+  then have "coupon_eq l r" using EQIN by auto
+  then show ?thesis 
+    using raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def OUTPUT by auto
 next
   case ThunkTree
-  then show ?thesis sorry
+  then obtain e xs
+    where "coupons = e # xs" using H by (cases coupons) auto
+  then have LS: "coupons = [e]" using ThunkTree H by (cases xs) auto
+
+  have EQC: "is_eq_coupon_api e" using H ThunkTree LS by (cases "is_eq_coupon_api e") auto
+  then obtain l' r' where L: "get_coupon_lhs e = Some l'"
+                      and R: "get_coupon_rhs e = Some r'"
+    using H ThunkTree LS by (cases "get_coupon_lhs e"; cases "get_coupon_rhs e") auto
+  then obtain l'' r'' where L'': "create_thunk_api l' = Some l''"
+                        and R'': "create_thunk_api r' = Some r''"
+    using H ThunkTree LS EQC by (cases "create_thunk_api l'"; cases "create_thunk_api r'") auto
+  then have EQO: "is_equal l l'' \<and> is_equal r r''"
+    using H ThunkTree LS EQC L R by (cases "is_equal l l'' \<and> is_equal r r''") auto
+  then have OUTPUT: "c = create_eq_coupon l r"
+    using H ThunkTree LS EQC L R L'' R'' by auto
+
+  obtain t1 where TreeL: "l' = HTreeHandle t1" and ThunkL: "l'' = HThunkHandle (create_thunk t1)"
+    using L'' by (cases l') auto
+  obtain t2 where TreeR: "r' = HTreeHandle t2" and ThunkR: "r'' = HThunkHandle (create_thunk t2)"
+    using R'' by (cases r') auto
+
+  have "coupon_eq l' r'" 
+    using All LS EQC L R raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+  then have "coupon_eq l'' r''" 
+    using TreeL ThunkL TreeR ThunkR coupon_force_coupon_storage_coupon_eq.CouponThunkTree by auto
+  then show ?thesis 
+    using OUTPUT EQO raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def OUTPUT by auto
 next
   case ThunkForce
   then show ?thesis sorry
