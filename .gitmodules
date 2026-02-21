@@ -1,0 +1,3 @@
+[submodule "wasm-proofs/WasmCert-Isabelle"]
+	path = wasm-proofs/WasmCert-Isabelle
+	url = https://github.com/WasmCert/WasmCert-Isabelle
