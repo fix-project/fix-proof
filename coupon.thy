@@ -1,4 +1,4 @@
-theory eqqqnew
+theory coupon
   imports Main
 begin
 
@@ -4631,6 +4631,12 @@ and
 and
   get_coupon_type_eq[simp]:
   "get_coupon_type_api (create_eq_coupon l r) = 2"
+and
+  is_coupon_lhs:
+  "is_coupon c \<Longrightarrow> \<exists>l. get_coupon_lhs c = Some l"
+and
+  is_coupon_rhs:
+  "is_coupon c \<Longrightarrow> \<exists>r. get_coupon_rhs c = Some r"
 
 definition is_force_coupon_api :: "handle \<Rightarrow> bool" where
   "is_force_coupon_api c \<equiv> (is_coupon c \<and> get_coupon_type_api c = 0)"
@@ -4743,6 +4749,33 @@ next
   then show ?case using H T Cons Consys by (cases "i") auto
 qed
 
+lemma raw_coupon_to_force:
+  assumes "is_force_coupon_api c"
+      and "raw_coupon_ok c"
+    shows "get_coupon_lhs c = Some l \<Longrightarrow> get_coupon_rhs c = Some r \<Longrightarrow> coupon_force l r"
+  using raw_coupon_ok_def assms is_force_coupon_api_def
+  by auto
+
+lemma raw_coupon_to_storage:
+  assumes "is_storage_coupon_api c"
+      and "raw_coupon_ok c"
+    shows "get_coupon_lhs c = Some l \<Longrightarrow> get_coupon_rhs c = Some r \<Longrightarrow> coupon_storage l r"
+  using raw_coupon_ok_def assms is_force_coupon_api_def is_storage_coupon_api_def
+  by auto
+
+lemma raw_coupon_to_eq:
+  assumes "is_eq_coupon_api e"
+      and "raw_coupon_ok e"
+    shows "get_coupon_lhs e = Some l \<Longrightarrow> get_coupon_rhs e = Some r \<Longrightarrow> coupon_eq l r"
+  using raw_coupon_ok_def assms is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def
+  by auto
+
+lemma eq_to_raw_coupon:
+  assumes "coupon_eq l r"
+  shows "raw_coupon_ok (create_eq_coupon l r)"
+  using raw_coupon_ok_def assms is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def
+  by auto
+
 (* make_coupon_raw: request_type \<Rightarrow> premises \<Rightarrow> lhs \<Rightarrow> rhs \<Rightarrow> handle option *)
 fun make_coupon_raw :: "request_type \<Rightarrow> handle list \<Rightarrow> handle \<Rightarrow> handle \<Rightarrow> handle option" where
   "make_coupon_raw Blob ([c]) l r =
@@ -4834,48 +4867,45 @@ lemma make_coupon_raw_sound:
     shows "raw_coupon_ok c"
 proof (cases op)
   case Blob
-  then obtain c' xs where "coupons = c' # xs" using H by (cases coupons) auto
-  then have LS: "coupons = [c']" using Blob H by (cases xs) auto
-  then have ISS: "is_storage_coupon_api c'" using Blob H by (cases "is_storage_coupon_api c'") auto
-  then have ISC: "is_coupon c'" using is_storage_coupon_api_def by auto
+  note facts = H Blob
 
-  have NOTF: "\<not> is_force_coupon_api c'" using ISS is_storage_coupon_api_def is_force_coupon_api_def by auto
+  obtain c' xs where "coupons = c' # xs" using facts by (cases coupons) auto
+  then have LS: "coupons = [c']" using facts by (cases xs) auto
+  then have COUPON: "is_storage_coupon_api c'" using facts by (auto split: if_splits)
 
-  have Ok: "raw_coupon_ok c'" using All LS by auto
-  then have "\<exists>l r. (get_coupon_lhs c', get_coupon_rhs c') = (Some l, Some r)" using ISS ISC raw_coupon_ok_def by (cases "get_coupon_lhs c'"; cases "get_coupon_rhs c'") auto
-  then obtain l' r' where Some1: "get_coupon_lhs c' = Some l'" and Some2: "get_coupon_rhs c' = Some r'" by blast
-  then have "coupon_storage l' r'" using ISS ISC NOTF Ok raw_coupon_ok_def by auto
-  then have EQ: "coupon_eq l' r'" using coupon_force_coupon_storage_coupon_eq.CouponBlob by auto
+  note facts = facts LS COUPON
 
-  have "is_equal l l' \<and> is_equal r r'" using H Blob LS ISS Some1 Some2 by (cases "is_equal l l' \<and> is_equal r r'") auto
-  then have "c = create_eq_coupon l r" and EQ: "coupon_eq l r" using H Blob LS ISS Some1 Some2 EQ by auto
+  moreover obtain l' r' where L': "get_coupon_lhs c' = Some l'"
+                      and R': "get_coupon_rhs c' = Some r'"
+    using facts by (auto split: option.splits)
+  note facts = facts LS COUPON L' R'
 
-  then have "is_coupon c" and "is_eq_coupon_api c" and "\<not>is_force_coupon_api c" and "\<not>is_storage_coupon_api c" and "get_coupon_lhs c = Some l" and "get_coupon_rhs c = Some r" using is_eq_coupon_api_def is_force_coupon_api_def is_storage_coupon_api_def by auto
-  then show ?thesis using EQ raw_coupon_ok_def by auto
+  moreover have EQUAL: "is_equal l l' \<and> is_equal r r'" using facts by (auto split: if_splits)
+
+  moreover have "raw_coupon_ok c'" using All LS by auto
+  ultimately have "coupon_eq l r"
+    using raw_coupon_to_storage coupon_force_coupon_storage_coupon_eq.CouponBlob by auto
+
+  moreover have OUTPUT: "c = create_eq_coupon l r" using facts LS L' R' COUPON EQUAL by auto
+  ultimately show ?thesis using  eq_to_raw_coupon by auto
 next
   case Tree
   then have A: "(\<forall>c \<in> set coupons. is_eq_coupon_api c)" 
-    using H by (cases "\<forall>c \<in> set coupons. is_eq_coupon_api c") auto 
+    using H by (auto split: if_splits)
   then obtain llist rlist where S1: "those (map (\<lambda>c. get_coupon_lhs c) coupons) = Some llist"
                             and S2: "those (map (\<lambda>c. get_coupon_rhs c) coupons) = Some rlist"
-    using H Tree by (cases "(those (map (\<lambda>c. get_coupon_lhs c) coupons))";
-                     cases "those (map (\<lambda>c. get_coupon_rhs c) coupons)") auto
-
+    using H Tree by (auto split: option.splits)
 
   have LEN: "get_tree_size_api l = Some (length llist) \<and> get_tree_size_api r = Some (length rlist)"
     using Tree A S1 S2 H
-    by (cases "get_tree_size_api l = Some (length llist) \<and> get_tree_size_api r = Some (length rlist)") auto
+    by (auto split: if_splits)
 
   then have EQUAL: "\<forall>i<length llist.
                 case get_tree_data_api l i of None \<Rightarrow> False
                 | Some h1 \<Rightarrow>
                     case get_tree_data_api r i of None \<Rightarrow> False
                     | Some h2 \<Rightarrow> is_equal h1 (llist ! i) \<and> is_equal h2 (rlist ! i)"
-    using Tree A S1 S2 H by (cases "\<forall>i<length llist.
-                case get_tree_data_api l i of None \<Rightarrow> False
-                | Some h1 \<Rightarrow>
-                    case get_tree_data_api r i of None \<Rightarrow> False
-                    | Some h2 \<Rightarrow> is_equal h1 (llist ! i) \<and> is_equal h2 (rlist ! i)") auto
+    using Tree A S1 S2 H by (auto split: if_splits)
 
   then have OUTPUT: "c = create_eq_coupon l r" using Tree A S1 S2 H LEN by auto
 
@@ -4907,7 +4937,7 @@ next
     then obtain l' r' where LHS: "get_coupon_lhs (coupons ! i) = Some l'" 
                         and RHS: "get_coupon_rhs (coupons ! i) =  Some r'" 
       using raw_coupon_ok_def is_eq_coupon_api_def OK 
-      by (cases "get_coupon_lhs (coupons ! i)"; cases "get_coupon_rhs (coupons ! i)") auto
+      by (auto split: option.splits)
     then have EQ: "coupon_eq l' r'" 
       using raw_coupon_ok_def is_eq_coupon_api_def is_force_coupon_api_def is_storage_coupon_api_def OK ISE by auto
 
@@ -4932,17 +4962,22 @@ next
   then show ?thesis using OUTPUT raw_coupon_ok_def is_eq_coupon_api_def is_storage_coupon_api_def is_force_coupon_api_def by auto
 next
   case Thunk
+  note facts = H Thunk
   then obtain f1 xs
-    where "coupons = f1 # xs" using H by (cases coupons) auto
+    where "coupons = f1 # xs" using facts by (cases coupons) auto
   then obtain f2 xs
-    where "coupons = f1 # f2 # xs" using H Thunk by (cases xs) auto
+    where "coupons = f1 # f2 # xs" using facts by (cases xs) auto
   then obtain e xs
-    where "coupons = f1 # f2 # e # xs" using H Thunk by (cases xs) auto
-  then have LS: "coupons = f1 # f2 # e # []" using H Thunk by (cases xs) auto
+    where "coupons = f1 # f2 # e # xs" using facts by (cases xs) auto
+  then have LS: "coupons = f1 # f2 # e # []" using facts by (cases xs) auto
+
+  note facts = facts LS
 
   have COUPON: "(is_force_coupon_api f1) \<and> (is_force_coupon_api f2) \<and> (is_eq_coupon_api e)"
-    using H Thunk LS
-    by (cases "(is_force_coupon_api f1) \<and> (is_force_coupon_api f2) \<and> (is_eq_coupon_api e)") auto
+    using facts
+    by (auto split: if_splits)
+
+  note facts = facts COUPON
 
   then obtain f1l f1r f2l f2r el er where L1: "get_coupon_lhs f1 = Some f1l"
                                       and R1: "get_coupon_rhs f1 = Some f1r"
@@ -4951,50 +4986,46 @@ next
                                       and LE: "get_coupon_lhs e = Some el"
                                       and RE: "get_coupon_rhs e = Some er"
     using H Thunk LS
-    by (cases "get_coupon_lhs f1"; cases "get_coupon_rhs f1"; cases "get_coupon_lhs f2"; cases "get_coupon_rhs f2"; cases "get_coupon_lhs e"; cases "get_coupon_rhs e") auto
+    by (auto split: option.splits)
 
-  then have EQL: "is_equal f1r el \<and> is_equal f2r er"
-    using H Thunk LS COUPON
-    by (cases "is_equal f1r el \<and> is_equal f2r er") auto
-  then have EQIN: "is_equal f1l l \<and> is_equal f2l r"
-    using H Thunk LS COUPON L1 R1 L2 R2 LE RE
-    by (cases "is_equal f1l l \<and> is_equal f2l r") auto
-  then have OUTPUT: "c = create_eq_coupon l r" 
-    using H Thunk LS COUPON L1 R1 L2 R2 LE RE EQL by auto
+  then have EQL: "is_equal f1r el \<and> is_equal f2r er" 
+        and EQIN: "is_equal f1l l \<and> is_equal f2l r" 
+        and OUTPUT: "c = create_eq_coupon l r" 
+    using facts by (auto split: if_splits)
 
-  have "raw_coupon_ok f1" using All LS by auto
-  then have F1: "coupon_force f1l f1r" 
-    using COUPON raw_coupon_ok_def is_force_coupon_api_def L1 R1 by auto
+  have "coupon_force f1l f1r" 
+    using COUPON raw_coupon_to_force L1 R1 All LS by auto
+  moreover have F2: "coupon_force f2l f2r"
+    using COUPON raw_coupon_to_force L2 R2 All LS by auto
+  moreover have E: "coupon_eq f1r f2r"
+    using COUPON raw_coupon_to_eq LE RE EQL All LS by auto
+  ultimately have "coupon_eq f1l f2l" 
+    using coupon_force_coupon_storage_coupon_eq.CouponThunk by auto
 
-  have "raw_coupon_ok f2" using All LS by auto
-  then have F2: "coupon_force f2l f2r"
-    using COUPON raw_coupon_ok_def is_force_coupon_api_def L2 R2 by auto
-
-  have "raw_coupon_ok e" using All LS by auto
-  then have E: "coupon_eq f1r f2r"
-    using COUPON raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def LE RE EQL by auto
-
-  have "coupon_eq f1l f2l" using coupon_force_coupon_storage_coupon_eq.CouponThunk[OF F1 F2 E] by auto
   then have "coupon_eq l r" using EQIN by auto
-  then show ?thesis 
-    using raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def OUTPUT by auto
+  then show ?thesis using eq_to_raw_coupon OUTPUT by auto
 next
   case ThunkTree
   then obtain e xs
     where "coupons = e # xs" using H by (cases coupons) auto
   then have LS: "coupons = [e]" using ThunkTree H by (cases xs) auto
 
-  have EQC: "is_eq_coupon_api e" using H ThunkTree LS by (cases "is_eq_coupon_api e") auto
-  then obtain l' r' where L: "get_coupon_lhs e = Some l'"
-                      and R: "get_coupon_rhs e = Some r'"
-    using H ThunkTree LS by (cases "get_coupon_lhs e"; cases "get_coupon_rhs e") auto
-  then obtain l'' r'' where L'': "create_thunk_api l' = Some l''"
-                        and R'': "create_thunk_api r' = Some r''"
-    using H ThunkTree LS EQC by (cases "create_thunk_api l'"; cases "create_thunk_api r'") auto
-  then have EQO: "is_equal l l'' \<and> is_equal r r''"
-    using H ThunkTree LS EQC L R by (cases "is_equal l l'' \<and> is_equal r r''") auto
-  then have OUTPUT: "c = create_eq_coupon l r"
-    using H ThunkTree LS EQC L R L'' R'' by auto
+  note facts = H ThunkTree LS
+
+  have COUPON: "is_eq_coupon_api e" 
+    using H ThunkTree LS by (auto split: if_splits)
+
+  note facts = facts COUPON
+
+  then obtain l' r' l'' r'' where L: "get_coupon_lhs e = Some l'"
+                              and R: "get_coupon_rhs e = Some r'"
+                              and L'': "create_thunk_api l' = Some l''"
+                              and R'': "create_thunk_api r' = Some r''"
+    using facts by (auto split: option.splits)
+
+  then have EQUAL: "is_equal l l'' \<and> is_equal r r''"
+        and OUTPUT: "c = create_eq_coupon l r"
+    using facts by (auto split: if_splits)
 
   obtain t1 where TreeL: "l' = HTreeHandle t1" and ThunkL: "l'' = HThunkHandle (create_thunk t1)"
     using L'' by (cases l') auto
@@ -5002,11 +5033,11 @@ next
     using R'' by (cases r') auto
 
   have "coupon_eq l' r'" 
-    using All LS EQC L R raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+    using All LS raw_coupon_to_eq COUPON L R by auto
   then have "coupon_eq l'' r''" 
     using TreeL ThunkL TreeR ThunkR coupon_force_coupon_storage_coupon_eq.CouponThunkTree by auto
   then show ?thesis 
-    using OUTPUT EQO raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def OUTPUT by auto
+    using OUTPUT EQUAL eq_to_raw_coupon by auto
 next
   case ThunkForce
   then obtain e xs
@@ -5015,10 +5046,12 @@ next
     where "coupons = e # f1 # xs" using H ThunkForce by (cases xs) auto
   then obtain f2 xs
     where "coupons = e # f1 # f2 # xs" using H ThunkForce by (cases xs) auto
-  then have LS: "coupons = e # f1 # f2  # []" using H ThunkForce by (cases xs) auto
+  hence LS: "coupons = e # f1 # f2  # []" using H ThunkForce by (cases xs) auto
 
-  then have COUPON: "(is_eq_coupon_api e) \<and> (is_force_coupon_api f1) \<and> (is_force_coupon_api f2)"
-    using H ThunkForce by (cases "(is_eq_coupon_api e) \<and> (is_force_coupon_api f1) \<and> (is_force_coupon_api f2)") auto
+  note facts = H ThunkForce LS
+
+  hence COUPON: "(is_eq_coupon_api e) \<and> (is_force_coupon_api f1) \<and> (is_force_coupon_api f2)"
+    using facts by (auto split: if_splits)
 
   then obtain el er f1l f1r f2l f2r where EL: "get_coupon_lhs e = Some el"
                                       and ER: "get_coupon_rhs e = Some er"
@@ -5026,107 +5059,85 @@ next
                                       and F1R: "get_coupon_rhs f1 = Some f1r"
                                       and F2L: "get_coupon_lhs f2 = Some f2l"
                                       and F2R: "get_coupon_rhs f2 = Some f2r"
-    using H ThunkForce LS
-    by (cases "get_coupon_lhs e"; cases "get_coupon_rhs e"; cases "get_coupon_lhs f1"; cases "get_coupon_rhs f1"; cases "get_coupon_lhs f2"; cases "get_coupon_rhs f2") auto
+    using facts
+    by (auto split: option.splits)
 
-  then have EQUAL: "is_equal f1l el \<and> is_equal f2l er \<and> is_equal f1r l \<and> is_equal f2r r"
-  proof (cases "(is_equal f1l el \<and> is_equal f2l er \<and> is_equal f1r l \<and> is_equal f2r r)")
-    case True
-    then show ?thesis by auto
-  next
-    case False
-    then have "make_coupon_raw op coupons l r = None"
-      using ThunkForce LS COUPON EL ER F1L F1R F2L F2R by auto
-    then show ?thesis using H by auto
-  qed
+  hence EQUAL: "is_equal f1l el \<and> is_equal f2l er \<and> is_equal f1r l \<and> is_equal f2r r"
+        and OUTPUT: "c = create_eq_coupon l r"
+    using facts
+    by (auto split: if_splits)
 
-  then have OUTPUT: "c = create_eq_coupon l r" using H ThunkForce LS COUPON EL ER F1L F1R F2L F2R by auto
-
-  have "raw_coupon_ok e" using All LS by auto
-  then have E: "coupon_eq el er" using raw_coupon_ok_def COUPON EL ER is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
-
-  have "raw_coupon_ok f1" using All LS by auto
-  then have F1: "coupon_force f1l f1r" using raw_coupon_ok_def COUPON F1L F1R is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
-
-  have "raw_coupon_ok f2" using All LS by auto
-  then have F2: "coupon_force f2l f2r" using raw_coupon_ok_def COUPON F2L F2R is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
-
-  have "coupon_eq l r" 
-    using E F1 F2 EQUAL coupon_force_coupon_storage_coupon_eq.CouponThunkForce by auto
-  then show ?thesis 
-    using OUTPUT raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+  have "coupon_eq el er" using All LS EL ER COUPON raw_coupon_to_eq by auto
+  moreover have "coupon_force f1l f1r" using All LS F1L F1R COUPON raw_coupon_to_force by auto
+  moreover have "coupon_force f2l f2r" using All LS F2L F2R COUPON raw_coupon_to_force by auto
+  ultimately have "coupon_eq l r" 
+    using EQUAL coupon_force_coupon_storage_coupon_eq.CouponThunkForce by auto
+  thus ?thesis using OUTPUT eq_to_raw_coupon by auto
 next
   case Encode
   then obtain e xs
     where "coupons = e # xs" using H by (cases coupons) auto
-  then have LS: "coupons = e # []" using H Encode by (cases xs) auto
+  hence LS: "coupons = e # []" using H Encode by (cases xs) auto
 
-  then have COUPON: "is_eq_coupon_api e" 
+  hence COUPON: "is_eq_coupon_api e" 
     using H Encode by (cases "is_eq_coupon_api e") auto
 
-  then obtain l' r' where L': "get_coupon_lhs e = Some l'"
-                      and R': "get_coupon_rhs e = Some r'"
-    using H Encode LS
-    by (cases "get_coupon_lhs e"; cases "get_coupon_rhs e") auto
+  note facts = H Encode LS COUPON
 
-  then obtain l'' r'' where L'': "create_encode_api l' = Some l''"
-                        and R'': "create_encode_api r' = Some r''"
-    using H Encode LS COUPON
-    by (cases "create_encode_api l'"; cases "create_encode_api r'") auto
+  then obtain l' r' l'' r'' where L': "get_coupon_lhs e = Some l'"
+                              and R': "get_coupon_rhs e = Some r'"
+                              and L'': "create_encode_api l' = Some l''"
+                              and R'': "create_encode_api r' = Some r''"
+    using facts
+    by (auto split: option.splits)
 
-  then obtain lt rt where LT: "l' = HThunkHandle lt"
-                      and RT: "r' = HThunkHandle rt"
+  hence EQUAL: "is_equal l l'' \<and> is_equal r r''"
+    and OUTPUT: "c = create_eq_coupon l r"
+    using facts
+    by (auto split: if_splits)
+
+
+  obtain lt rt where "l' = HThunkHandle lt"
+                 and "r' = HThunkHandle rt"
+    using L' R' L'' R''
     by (cases l'; cases r') auto
 
-  then obtain le re where LE: "l'' = HEncodeHandle le"
-                      and LC: "le = create_encode lt"
-                      and RE: "r'' = HEncodeHandle re"
-                      and RC: "re = create_encode rt"
+  moreover then obtain le re where "l'' = HEncodeHandle le"
+                               and "le = create_encode lt"
+                               and "r'' = HEncodeHandle re"
+                               and "re = create_encode rt"
     using L'' R''
     by (cases l''; cases r'') auto
 
-  have EQUAL: "is_equal l l'' \<and> is_equal r r''"
-    using H Encode LS COUPON L' R' L'' R''
-    by (cases "is_equal l l'' \<and> is_equal r r''") auto
-
-  then have OUTPUT: "c = create_eq_coupon l r"
-    using H Encode LS COUPON L' R' L'' R'' 
-    by auto
-
-  have "raw_coupon_ok e" using All LS by auto
-  then have "coupon_eq l' r'" using raw_coupon_ok_def COUPON L' R' is_force_coupon_api_def
-    is_storage_coupon_api_def is_eq_coupon_api_def by auto
-  then have "coupon_eq l'' r''"
-    using LT RT LE LC RE RC coupon_force_coupon_storage_coupon_eq.CouponEncode 
-    by auto
-  then have "coupon_eq l r" using EQUAL by auto
-  then show ?thesis using OUTPUT raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+  moreover have "coupon_eq l' r'" using All LS COUPON L' R' raw_coupon_to_eq by auto
+  ultimately have "coupon_eq l'' r''"
+    using coupon_force_coupon_storage_coupon_eq.CouponEncode by auto
+  hence "coupon_eq l r" using EQUAL by auto
+  thus ?thesis using OUTPUT eq_to_raw_coupon by auto
 next
   case Sym
   then obtain e xs
     where "coupons = e # xs" using H by (cases coupons) auto
   then have LS: "coupons = e # []" using H Sym by (cases xs) auto
 
-  then have COUPON: "is_eq_coupon_api e"
-    using H Sym by (cases "is_eq_coupon_api e") auto
+  moreover then have COUPON: "is_eq_coupon_api e"
+    using H Sym by (auto split: if_splits)
 
-  then obtain l' r' where L': "get_coupon_lhs e = Some l'"
-                      and R': "get_coupon_rhs e = Some r'"
+  moreover then obtain l' r' where "get_coupon_lhs e = Some l'"
+                               and "get_coupon_rhs e = Some r'"
     using H Sym LS
-    by (cases "get_coupon_lhs e"; cases "get_coupon_rhs e") auto
+    by (auto split: option.splits)
 
-  then have EQUAL: "is_equal r' l \<and> is_equal l' r"
+  moreover then have EQUAL: "is_equal r' l \<and> is_equal l' r"
+                 and OUTPUT: "c = create_eq_coupon l r"
     using H Sym LS COUPON
-    by (cases "is_equal r' l \<and> is_equal l' r") auto
+    by (auto split: if_splits)
 
-  then have OUTPUT: "c = create_eq_coupon l r"
-    using H Sym LS COUPON L' R' by auto
-
-  have "raw_coupon_ok e" using All LS by auto
-  then have "coupon_eq l' r'" using raw_coupon_ok_def COUPON L' R' is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+  moreover have "raw_coupon_ok e" using All LS by auto
+  ultimately have "coupon_eq l' r'" 
+    using raw_coupon_to_eq by auto 
   then have "coupon_eq l r" using EQUAL coupon_force_coupon_storage_coupon_eq.CouponSym by auto
-  then show ?thesis using OUTPUT raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def
-  is_eq_coupon_api_def by auto
+  thus ?thesis using OUTPUT eq_to_raw_coupon by auto
 next
   case Trans
   then obtain e1 xs
@@ -5135,33 +5146,32 @@ next
     where "coupons = e1 # e2 # xs" using H Trans by (cases xs) auto
   then have LS: "coupons = e1 # e2 # []" using H Trans by (cases xs) auto
 
-  then have COUPON: "is_eq_coupon_api e1 \<and> is_eq_coupon_api e2"
-    using H Trans by (cases "is_eq_coupon_api e1 \<and> is_eq_coupon_api e2") auto
+  moreover then have COUPON: "is_eq_coupon_api e1 \<and> is_eq_coupon_api e2"
+    using H Trans by (auto split: if_splits)
 
-  then obtain e1l e1r e2l e2r where E1L: "get_coupon_lhs e1 = Some e1l"
-                                and E1R: "get_coupon_rhs e1 = Some e1r"
-                                and E2L: "get_coupon_lhs e2 = Some e2l"
-                                and E2R: "get_coupon_rhs e2 = Some e2r"
+  moreover then obtain e1l e1r e2l e2r where "get_coupon_lhs e1 = Some e1l"
+                                         and "get_coupon_rhs e1 = Some e1r"
+                                         and "get_coupon_lhs e2 = Some e2l"
+                                         and "get_coupon_rhs e2 = Some e2r"
     using H Trans LS
-    by (cases "get_coupon_lhs e1"; cases "get_coupon_rhs e1"; cases "get_coupon_lhs e2"; cases "get_coupon_rhs e2") auto
+    by (auto split: option.splits)
 
-  then have EQUAL: "is_equal e1r e2l \<and> is_equal l e1l \<and> is_equal r e2r"
+  moreover then have EQUAL: "is_equal e1r e2l \<and> is_equal l e1l \<and> is_equal r e2r"
+                 and OUTPUT: "c = create_eq_coupon l r"
     using H Trans LS COUPON
-    by (cases "is_equal e1r e2l \<and> is_equal l e1l \<and> is_equal r e2r") auto
+    by (auto split: if_splits)
 
-  then have OUTPUT: "c = create_eq_coupon l r"
-    using H Trans LS COUPON E1L E1R E2L E2R by auto
-
-  have "raw_coupon_ok e1" and "raw_coupon_ok e2" using All LS by auto
-  then have "coupon_eq e1l e1r" and "coupon_eq e2l e2r" using raw_coupon_ok_def COUPON E1L E1R E2L E2R is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
-  then have "coupon_eq l r" using EQUAL coupon_force_coupon_storage_coupon_eq.CouponTrans by auto
-  then show ?thesis using OUTPUT raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+  moreover have "raw_coupon_ok e1" and "raw_coupon_ok e2" using All LS by auto
+  ultimately have "coupon_eq e1l e1r" and "coupon_eq e2l e2r" 
+    using raw_coupon_to_eq  by auto
+  hence "coupon_eq l r" using EQUAL coupon_force_coupon_storage_coupon_eq.CouponTrans by auto
+  thus ?thesis using OUTPUT eq_to_raw_coupon by auto
 next
   case Self
   then have LS: "coupons = []" using H by (cases coupons) auto
-  then have EQUAL: "is_equal l r" using H Self by (cases "is_equal l r") auto
+  then have EQUAL: "is_equal l r" using H Self by (auto split: if_splits)
   then have OUTPUT: "c = create_eq_coupon l r" using H Self LS by auto
 
   have "coupon_eq l r" using EQUAL coupon_force_coupon_storage_coupon_eq.CouponSelf by auto
-  then show ?thesis using OUTPUT raw_coupon_ok_def is_force_coupon_api_def is_storage_coupon_api_def is_eq_coupon_api_def by auto
+  then show ?thesis using OUTPUT eq_to_raw_coupon by auto
 qed
