@@ -4,7 +4,7 @@ begin
 
 definition init :: "s" where "init = 
 \<lparr> funcs = 
-[(Func_host ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]) (Host_func is_equal)),
+[(Func_host ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]) (Host_func fixpoint_is_equal)),
 (Func_native 
 \<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
