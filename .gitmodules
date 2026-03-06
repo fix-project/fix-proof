@@ -1,3 +1,6 @@
 [submodule "wasm-proofs/WasmCert-Isabelle"]
 	path = wasm-proofs/WasmCert-Isabelle
 	url = https://github.com/WasmCert/WasmCert-Isabelle
+[submodule "spec"]
+	path = spec
+	url = https://github.com/conrad-watt/spec.git
