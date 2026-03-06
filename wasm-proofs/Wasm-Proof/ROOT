@@ -1,3 +1,5 @@
 session "Wasm-Proof" = WebAssembly_Dev +
   theories
     Wasm_Proof_Playground
+    Host
+    Init
