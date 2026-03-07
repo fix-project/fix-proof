@@ -4704,7 +4704,6 @@ and
 
 definition raw_coupon_ok :: "handle \<Rightarrow> bool" where
   "raw_coupon_ok h =
-   (if (is_coupon h) then
     (case (get_coupon_lhs h, get_coupon_rhs h) of
        (Some l, Some r) \<Rightarrow> 
         (if (is_force_coupon_api h) then
@@ -4714,8 +4713,7 @@ definition raw_coupon_ok :: "handle \<Rightarrow> bool" where
          else if (is_eq_coupon_api h) then
            coupon_eq l r
          else False)
-      | _ \<Rightarrow> False)
-   else False)"
+      | _ \<Rightarrow> False)"
 
 fun make_coupon_self :: "handle \<Rightarrow> handle option" where
   "make_coupon_self h = Some (create_eq_coupon h h)"
