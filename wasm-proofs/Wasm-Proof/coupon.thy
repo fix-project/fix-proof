@@ -5175,3 +5175,5 @@ next
   have "coupon_eq l r" using EQUAL coupon_force_coupon_storage_coupon_eq.CouponSelf by auto
   then show ?thesis using OUTPUT eq_to_raw_coupon by auto
 qed
+
+end
