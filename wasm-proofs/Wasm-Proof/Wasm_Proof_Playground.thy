@@ -14,45 +14,54 @@ lemma sf:
   "int_eq (I32.int_of_nat 0) 0"
   by (simp add: I32.int_eq_def I32.int_of_nat_def int_eq_i32.abs_eq zero_i32_def)
 
-lemma convert_50_to_suc:
-"(50::nat) =
+
+definition fuel50 :: "nat \<Rightarrow> nat" where [simp]:
+"fuel50 n =
   (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
   (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
   (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
   (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
-  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc 0))))))))))))))))))))))))))))))))))))))))))))))))))"
-  by simp
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))))))))))))))))))))))))))))))))))))))"
+
+lemma fifty_is_fifty:
+"n + 50 =
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))))))))))))))))))))))))))))))))))))))"
+  by auto
 
 (* Given a fuel and depth that is enough to get to the result state, after run_iter, the result is a specific input argument *)
 lemma init_run_iter:
   assumes "is_equal (to_handle r1) (to_handle r2)"
-  shows "run_iter 50 (Config (Suc n') init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
+  shows "run_iter (fuel50 n) (Config (Suc n') init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
      (let v_s = [V_ref (ConstRefExtern r1)]
      in (Config (Suc n')
          init
          (Frame_context (Redex v_s [] []) [] 0 empty_frame) [],
          RValue v_s))"
   using fixpoint_is_equal_correct_externref[of r1 r2 init] assms
-  by (auto split: cl.splits simp add: convert_50_to_suc n_zeros_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def init_def app_v_s_if_def se tb_tf_def func_ret_idx_def)
+  by (auto split: cl.splits simp add: n_zeros_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def init_def app_v_s_if_def se tb_tf_def func_ret_idx_def)
 
 lemma init_run_iter_neq:
   assumes "\<not>is_equal (to_handle r1) (to_handle r2)"
-  shows "run_iter 50 (Config (Suc n') init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
+  shows "run_iter (fuel50 n) (Config (Suc n') init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
      (let v_s = [V_ref (ConstRefExtern r2)]
      in (Config (Suc n')
          init
          (Frame_context (Redex v_s [] []) [] 0 empty_frame) [],
          RValue v_s))"
   using fixpoint_is_equal_correct_externref_neq[of r1 r2 init] assms
-  by (auto split: cl.splits simp add: convert_50_to_suc n_zeros_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def init_def app_v_s_if_def sf tb_tf_def func_ret_idx_def fixpoint_is_equal_impl)
+  by (auto split: cl.splits simp add: n_zeros_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def init_def app_v_s_if_def sf tb_tf_def func_ret_idx_def fixpoint_is_equal_impl)
 
 (* From the run_iter lemmas, one step out to the run_invoke lemmas *)
 lemma init_run_invoke:
   assumes "is_equal (to_handle r1) (to_handle r2)" 
-  shows "run_invoke_v 50
+  shows "run_invoke_v (fuel50 n)
    (Suc 0) (init, [(V_ref (ConstRefExtern r1)), (V_ref (ConstRefExtern r2))], func_ret_idx) = (init, RValue [V_ref (ConstRefExtern r1)])"
 proof -
-  have X: "run_iter 50 (Config (Suc 0) init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
+  have X: "run_iter (fuel50 n) (Config (Suc 0) init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
      (let v_s = [V_ref (ConstRefExtern r1)]
      in (Config (Suc 0)
          init
@@ -72,10 +81,10 @@ qed
 
 lemma init_run_invoke_neq:
   assumes "\<not>is_equal (to_handle r1) (to_handle r2)" 
-  shows "run_invoke_v 50
+  shows "run_invoke_v (fuel50 n)
    (Suc 0) (init, [(V_ref (ConstRefExtern r1)), (V_ref (ConstRefExtern r2))], func_ret_idx) = (init, RValue [V_ref (ConstRefExtern r2)])"
 proof -
-  have X: "run_iter 50 (Config (Suc 0) init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
+  have X: "run_iter (fuel50 n) (Config (Suc 0) init (Frame_context (Redex [(V_ref (ConstRefExtern r2)), (V_ref (ConstRefExtern r1))] [Invoke func_ret_idx] []) [] 0 empty_frame) []) = 
      (let v_s = [V_ref (ConstRefExtern r2)]
      in (Config (Suc 0)
          init
@@ -141,14 +150,47 @@ proof -
     by (metis "1" "2" "3" "4" assms handy_if_lemma)
 qed
 
+definition exp_inst :: "inst" where [simp]: 
+"exp_inst = \<lparr>types =
+                [[T_ref T_ext_ref, T_ref T_ext_ref] _> [T_num T_i32], [T_ref T_ext_ref] _> [T_num T_i32], [T_ref T_ext_ref] _> [T_ref T_ext_ref],
+                 [T_ref T_ext_ref, T_ref T_ext_ref] _> [T_ref T_ext_ref]],
+                funcs = [0, Suc 0, 2, 3, 4, 5, 6], tabs = [0], mems = [], globs = [], elems = [], datas = []\<rparr>"
+
+lemma split_n_0: 
+"split_n (rest_vs) 0 = ([], rest_vs)"
+  by (simp add: split_n_conv_take_drop)
+
+lemma split_n_1: 
+"split_n (h1 # rest_vs) (Suc 0) = ([h1], rest_vs)"
+  by (simp add: split_n_conv_take_drop)
+
+lemma split_n_2: 
+"split_n (h1 # h2 # rest_vs) (Suc (Suc 0)) = ([h1, h2], rest_vs)"
+  by (simp add: split_n_conv_take_drop)
+
+lemma plus_32:
+"n + 32 = (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))))))))))))))))))))"
+  by auto
+
 lemma make_blob_coupon_raw_run_iter:
   assumes "make_blob_coupon_raw coupons l r = Some res"
-  shows  "(run_invoke_v 50  (Suc 0)
-         (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>,
-   [(V_ref (ConstRefExtern (to_externref l))), 
-         (V_ref (ConstRefExtern (to_externref r)))],
-        func_make_blob_coupon_idx) = 
-(init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>, RValue [V_ref (ConstRefExtern (to_externref (create_eq_coupon l r)))]))"
+  shows  "run_iter (n + 32)
+          (Config 
+           (Suc n')
+           (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
+           (Frame_context 
+              (Redex ((V_ref (ConstRefExtern (to_externref r))) #
+                      (V_ref (ConstRefExtern (to_externref l))) #
+                      rest_vs)
+                     []
+                     [Call func_make_blob_coupon_idx])
+            lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
+ =
+          run_iter n
+          (Config 
+           (Suc n')
+           (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] []) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   obtain c xs l' r' where 1: "coupons = c # xs"
                       and 2: "is_storage_coupon_api c"
@@ -180,14 +222,16 @@ proof -
         int_and_i32.abs_eq)
 
   show ?thesis
+    apply (auto split: cl.splits simp add: init_def app_f_call_def func_make_blob_coupon_idx_def)
+
     using A C[of ?state] 
           fixpoint_get_coupon_lhs_impl[of ?state ?ce] 3 
           fixpoint_get_coupon_rhs_impl[of ?state ?ce] 4
           fixpoint_is_equal_correct_externref[of "to_externref l" "to_externref l'" ?state] 5
           fixpoint_is_equal_correct_externref[of "to_externref r" "to_externref r'" ?state] 6
           fixpoint_create_eq_coupon_impl[of ?state "to_externref l" "to_externref r"] 7
-    by (auto split: cl.splits simp add: convert_50_to_suc init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def B
-    app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def D Let_def)
+    by (auto split: cl.splits simp del: split_n.simps simp add:  init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def B
+    app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def  se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def D split_n_0 split_n_1 split_n_2 app_v_s_if_def plus_32)
 qed
 
 
@@ -221,12 +265,19 @@ lemma mb_none:
 
 lemma make_blob_coupon_raw_run_invoke_none:
   assumes "make_blob_coupon_raw coupons l r = None"
-  shows "\<exists>msg. run_invoke_v 50 (Suc 0) 
-        (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>,
-        [(V_ref (ConstRefExtern (to_externref l))), 
-         (V_ref (ConstRefExtern (to_externref r)))],
-        func_make_blob_coupon_idx)
-        = (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>, RTrap msg)"
+  shows "\<exists>msg cfg.
+          run_iter (fuel50 n)
+          (Config 
+           (Suc n')
+           (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
+           (Frame_context 
+              (Redex ((V_ref (ConstRefExtern (to_externref r))) #
+                      (V_ref (ConstRefExtern (to_externref l))) #
+                      rest_vs)
+                     []
+                     [Call func_make_blob_coupon_idx])
+            lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
+        = (cfg, RTrap msg)"
 proof -
   let ?A = "coupons = []"
   let ?B = "(\<exists> c xs. coupons = c # xs \<and> \<not> is_storage_coupon_api c)"
@@ -246,18 +297,17 @@ proof -
 
   let ?state = "(init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
 
-  let ?lhs = "run_invoke_v 50 (Suc 0) 
-        (?state,
-        [(V_ref (ConstRefExtern (to_externref l))), 
-         (V_ref (ConstRefExtern (to_externref r)))],
-        func_make_blob_coupon_idx)"
-
-  let ?f = "\<lparr>f_locs = [V_ref (ConstRefExtern (to_externref l)), V_ref (ConstRefExtern (to_externref r)), V_ref (bitzero_ref T_ext_ref)],
-           f_inst =
-             \<lparr>types =
-                [[T_ref T_ext_ref, T_ref T_ext_ref] _> [T_num T_i32], [T_ref T_ext_ref] _> [T_num T_i32], [T_ref T_ext_ref] _> [T_ref T_ext_ref],
-                 [T_ref T_ext_ref, T_ref T_ext_ref] _> [T_ref T_ext_ref]],
-                funcs = [0, Suc 0, 2, 3, 4, 5, 6], tabs = [0], mems = [], globs = [], elems = [], datas = []\<rparr>\<rparr>"
+  let ?lhs = "run_iter (fuel50 n)
+          (Config 
+           (Suc n')
+           ?state
+           (Frame_context 
+              (Redex ((V_ref (ConstRefExtern (to_externref r))) #
+                      (V_ref (ConstRefExtern (to_externref l))) #
+                      rest_vs)
+                     []
+                     [Call func_make_blob_coupon_idx])
+            lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 
   show ?thesis
     using assms
@@ -265,24 +315,22 @@ proof -
     assume "?A"
     then have 1: "\<not> nat_of_int (I32.lift0 0) < length coupons" by auto
 
-    have "?lhs = (?state, RTrap STR ''table_get'')"
+    show "\<exists>msg cfg.?lhs = (cfg, RTrap msg)"
       using 1
-      by (auto split: cl.splits simp add: convert_50_to_suc init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def)
-    then show "\<exists>msg. ?lhs = (?state, RTrap msg)" by blast
+      by (auto split: cl.splits simp del: split_n.simps simp add: init_def func_make_blob_coupon_idx_def app_f_call_def sfunc_ind_def n_zeros_def bitzero_def split_n_2 tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def)
   next
     assume "?B \<or> ?C \<or> ?D"
-    then show "\<exists>msg. ?lhs = (?state, RTrap msg)"
+    then show "\<exists>msg cfg. ?lhs = (cfg, RTrap msg)"
     proof
       assume ?B
       then obtain c xs where 1: "coupons = c # xs" and 2: "\<not> is_storage_coupon_api c" by auto
 
-      have "?lhs = (?state, RTrap STR ''unreachable'')"
+      then show "\<exists>msg cfg. ?lhs = (cfg, RTrap msg)"        
         using fixpoint_is_storage_coupon_api_externref_neq[of "to_externref c" ?state] 2
-        by (auto split: cl.splits simp add: convert_50_to_suc init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf)
-      then show "\<exists>msg. ?lhs = (?state, RTrap msg)" by blast
+        by (auto split: cl.splits simp del: split_n.simps simp add: init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def  se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf split_n_0 split_n_1 split_n_2 app_v_s_if_def)
     next
       assume "?C \<or> ?D"
-      then show "\<exists>msg. ?lhs = (?state, RTrap msg)"
+      then show "\<exists>msg cfg. ?lhs = (cfg, RTrap msg)"
       proof
         assume ?C
         then obtain c xs l' r' where 1: "coupons = c # xs"
@@ -302,7 +350,7 @@ proof -
         have 7: "(int_and (I32.int_of_nat 0) (I32.int_of_nat (Suc 0))) = (I32.int_of_nat 0)"
           by (simp add: 7 I32.int_of_nat_def int_and_i32.abs_eq)
 
-        have "?lhs = (?state, RTrap STR ''unreachable'')"
+        show "\<exists>msg cfg. ?lhs = (cfg, RTrap msg)" 
           using fixpoint_is_storage_coupon_api_externref[of "to_externref c" ?state] 2
           fixpoint_get_coupon_lhs_impl[of ?state "to_externref c"] 3
           fixpoint_get_coupon_rhs_impl[of ?state "to_externref c"] 4
@@ -310,12 +358,10 @@ proof -
           fixpoint_is_equal_correct_externref[of "to_externref r" "to_externref r'" ?state]
           fixpoint_is_equal_correct_externref_neq[of "to_externref r" "to_externref r'" ?state]
       
-          apply (auto split: cl.splits simp add: convert_50_to_suc init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf)
+          apply (auto split: cl.splits simp add: init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf split_n_0 split_n_1 split_n_2)
           apply (cases "is_equal r r'")
-          apply (auto split: cl.splits simp add: convert_50_to_suc init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf 6 7)
+          apply (auto split: cl.splits simp add: init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf 6 7 split_n_0 split_n_1 split_n_2)
           done
-          
-        then show "\<exists>msg. ?lhs = (?state, RTrap msg)" by blast
       next
         assume ?D
         then obtain c xs l' r' where 1: "coupons = c # xs"
@@ -331,38 +377,53 @@ proof -
         have 7: "(int_and (I32.int_of_nat (Suc 0)) (I32.int_of_nat 0)) = (I32.int_of_nat 0)"
           by (simp add: 7 I32.int_of_nat_def int_and_i32.abs_eq)
         
-        have "?lhs = (?state, RTrap STR ''unreachable'')"
+        show "\<exists>msg cfg. ?lhs = (cfg, RTrap msg)"
           using fixpoint_is_storage_coupon_api_externref[of "to_externref c" ?state] 2
           fixpoint_get_coupon_lhs_impl[of ?state "to_externref c"] 3
           fixpoint_get_coupon_rhs_impl[of ?state "to_externref c"] 4
           fixpoint_is_equal_correct_externref[of "to_externref l" "to_externref l'" ?state] 5
           fixpoint_is_equal_correct_externref_neq[of "to_externref r" "to_externref r'" ?state] 6
-        
-          by (auto split: cl.splits simp add: convert_50_to_suc init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf 7)
-        
-        then show "\<exists>msg. ?lhs = (?state, RTrap msg)" by blast
+          by (auto split: cl.splits simp add: init_def func_make_blob_coupon_idx_def n_zeros_def bitzero_def tab_coupons_idx_def app_s_f_v_s_table_get_def stab_ind_def load_tabs1_def app_f_v_s_local_set_def app_f_v_s_local_get_def app_f_call_def sfunc_ind_def typeof_def typeof_num_def app_v_s_if_def se tb_tf_def typeof_ref_def app_v_s_binop_def app_binop_def app_binop_i_v_def app_binop_i_def 1 nat_of_int_i32.abs_eq sf 7 split_n_0 split_n_1 split_n_2)
       qed
     qed
   qed
 qed
 
-lemma make_blob_coupon_raw_equiv:
-  "(\<And>res. 
-   (make_blob_coupon_raw coupons l r = Some res \<longrightarrow>
-      (\<exists>f d s.
-      run_invoke_v f d
-      (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>,
-      [V_ref (ConstRefExtern (to_externref l)), 
-       V_ref (ConstRefExtern (to_externref r))], func_make_blob_coupon_idx) 
-      = (s, RValue [V_ref (ConstRefExtern (to_externref res))]))) \<and> 
+find_theorems name: "fuel"
 
+lemma make_blob_coupon_raw_equiv:
+  "(make_blob_coupon_raw coupons l r = Some res \<longrightarrow>
+    (\<exists>fuel depth.
+           run_iter (n + fuel)
+           (Config depth
+           (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
+           (Frame_context 
+              (Redex ((V_ref (ConstRefExtern (to_externref r))) #
+                      (V_ref (ConstRefExtern (to_externref l))) #
+                      rest_vs)
+                     []
+                     [Call func_make_blob_coupon_idx])
+            lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
+          =
+          run_iter n
+          (Config 
+           depth
+           (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
+          (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] []) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)))
+       \<and> 
    (make_blob_coupon_raw coupons l r = None \<longrightarrow>
-      (\<exists>f d s msg.
-      run_invoke_v f d 
-      (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>,
-      [V_ref (ConstRefExtern (to_externref l)), 
-       V_ref (ConstRefExtern (to_externref r))], func_make_blob_coupon_idx) 
-      = (s, RTrap msg))))"
-  by (metis (lifting) make_blob_coupon_raw_run_invoke_none make_blob_coupon_raw_run_iter mb_some)
+     (\<exists>fuel depth msg cfg.
+           run_iter fuel
+           (Config depth
+           (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
+           (Frame_context 
+              (Redex ((V_ref (ConstRefExtern (to_externref r))) #
+                      (V_ref (ConstRefExtern (to_externref l))) #
+                      rest_vs)
+                     []
+                     [Call func_make_blob_coupon_idx])
+            lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
+          = (cfg, RTrap msg)))"
+  by (metis make_blob_coupon_raw_run_invoke_none make_blob_coupon_raw_run_iter)
 
 end
