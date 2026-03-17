@@ -4,6 +4,8 @@ begin
 
 definition func_ret_idx :: nat where "func_ret_idx = 5"
 definition func_make_blob_coupon_idx :: nat where "func_make_blob_coupon_idx = 6"
+definition func_make_self_coupon_idx :: nat where "func_make_self_coupon_idx = 7"
+definition func_make_coupon_idx :: nat where "func_make_coupon_idx = 8"
 definition tab_coupons_idx :: nat where "tab_coupons_idx = 0"
 definition init :: "s" where "init = 
 \<lparr> funcs = 
@@ -12,17 +14,17 @@ definition init :: "s" where "init =
 (Func_host ([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]) (Host_func fixpoint_get_coupon_lhs)),
 (Func_host ([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]) (Host_func fixpoint_get_coupon_rhs)),
 (Func_host ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]) (Host_func fixpoint_create_eq_coupon)),
-
 (Func_native 
-\<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
+\<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
-([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
-funcs = [0, 1, 2, 3, 4, 5, 6],
-tabs = [0],
+([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
+funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8],
+tabs = [0, 1],
 mems = [],
 globs = [],
-elems = [],
+elems = [0],
 datas = []
 \<rparr>
 ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])
@@ -34,15 +36,16 @@ datas = []
 [(Local_get 0)]
 [(Local_get 1)])]),
 (Func_native 
-\<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
+\<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
-([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
-funcs = [0, 1, 2, 3, 4, 5, 6],
-tabs = [0],
+([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
+funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8],
+tabs = [0, 1],
 mems = [],
 globs = [],
-elems = [],
+elems = [0],
 datas = []
 \<rparr>
 ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])
@@ -67,8 +70,57 @@ datas = []
 (Local_get 1),
 (Call 4)]
 [Unreachable])]
+[Unreachable])]),
+(Func_native 
+\<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
+([(T_ref T_ext_ref)] _> [(T_num T_i32)]),
+([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
+funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8],
+tabs = [0, 1],
+mems = [],
+globs = [],
+elems = [0],
+datas = []
+\<rparr>
+([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])
+[]
+[(Local_get 0),
+(Local_get 1),
+(Call 0),
+(If (Tbv (Some (T_ref T_ext_ref)))
+[(Local_get 0),
+(Local_get 1),
+(Call 4)]
+[Unreachable])]),
+(Func_native 
+\<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
+([(T_ref T_ext_ref)] _> [(T_num T_i32)]),
+([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
+funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8],
+tabs = [0, 1],
+mems = [],
+globs = [],
+elems = [0],
+datas = []
+\<rparr>
+([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])
+[]
+[(Local_get 0),
+(Table_size 1),
+(Relop T_i32 (Relop_i (Lt U))),
+(If (Tbv (Some (T_ref T_ext_ref)))
+[(Local_get 1),
+(Local_get 2),
+(Local_get 0),
+(Call_indirect 1 0)]
 [Unreachable])])],
-tabs = [((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), [])],
+tabs = [((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), []),
+((T_tab \<lparr> l_min = 2, l_max = (Some 2)\<rparr> T_func_ref), [(ConstRefFunc 6),
+(ConstRefFunc 7)])],
 mems = [],
 globs = [],
 elems = [],
