@@ -10,9 +10,19 @@ lemma se:
   "\<not> int_eq (I32.int_of_nat (Suc 0)) 0"
   by (simp add: I32.int_of_nat_def int_eq_i32_def Wasm_Ast.i32.Rep_i32_inject zero_i32_def I32.int_eq_def Wasm_Ast.i32.Abs_i32_inject)
 
+lemma st:
+  "\<not> int_eq (I32.lift0 1) 0"
+  by (simp add: I32.int_eq_def I32.rep_0 I32.rep_abs
+      int_eq_i32.rep_eq)
+
 lemma sf:
   "int_eq (I32.int_of_nat 0) 0"
   by (simp add: I32.int_eq_def I32.int_of_nat_def int_eq_i32.abs_eq zero_i32_def)
+
+lemma sff:
+  "int_eq (I32.lift0 0) 0"
+  by (simp add: I32.int_eq_def I32.rep_0 I32.rep_abs
+      int_eq_i32.rep_eq)
 
 
 definition fuel50 :: "nat \<Rightarrow> nat" where [simp]:
@@ -121,8 +131,9 @@ definition exp_inst :: "inst" where [simp]:
 ([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref)] _> [(T_num T_i32)]),
 ([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_num T_i32)] _> [(T_ref T_ext_ref)]),
 ([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
-funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8],
+funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
 tabs = [0, 1],
 mems = [],
 globs = [],

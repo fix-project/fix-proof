@@ -1,13 +1,6 @@
 theory self_coupon
-  imports Wasm_Proof_Playground
+  imports Wasm_Proof_Playground isabelle_coupon
 begin
-
-fun make_self_coupon_raw :: "handle list \<Rightarrow> handle \<Rightarrow> handle \<Rightarrow> handle option" where
-"make_self_coupon_raw xs l r = 
- (if (is_equal l r) then 
-    Some (create_eq_coupon l r) 
-  else 
-    None)"
 
 lemma ms_some:
   assumes "make_self_coupon_raw coupons l r = Some res"
@@ -17,7 +10,7 @@ lemma ms_some:
 lemma make_self_coupon_raw_run_iter:
   assumes "make_self_coupon_raw coupons l r = Some res"
   shows "run_iter  
-  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))
+  (n + 14)
   (Config 
    (Suc n')
    (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
@@ -40,10 +33,14 @@ proof -
 
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
 
+  have 3: "n + 14 =
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))"
+    by auto
+
   show ?thesis
     using fixpoint_is_equal_correct_externref[of "to_externref l" "to_externref r" ?state] 1
     fixpoint_create_eq_coupon_impl[of ?state "to_externref l" "to_externref r"]
-    by (auto split: cl.splits simp del: split_n.simps simp add: init_def func_make_self_coupon_idx_def app_f_call_def sfunc_ind_def n_zeros_def split_n_0 split_n_1 split_n_2 app_f_v_s_local_get_def 2 typeof_def typeof_ref_def typeof_num_def tab_coupons_idx_def app_v_s_if_def se tb_tf_def)
+    by (auto split: cl.splits simp del: split_n.simps simp add: init_def func_make_self_coupon_idx_def app_f_call_def sfunc_ind_def n_zeros_def split_n_0 split_n_1 split_n_2 app_f_v_s_local_get_def 2 typeof_def typeof_ref_def typeof_num_def tab_coupons_idx_def app_v_s_if_def se tb_tf_def 3)
 qed
 
 lemma ms_none:
