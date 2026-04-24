@@ -1319,4 +1319,92 @@ proof (coinduction arbitrary: h1 h2 rule: R.coinduct)
   qed
 qed
 
+lemma eval_R:
+  assumes "R h1 h2"
+  shows "rel_opt R (eval h1) (eval h2)"
+  apply (rule_tac evals_X)
+  using blob_cong_R apply blast
+  using tree_cong_R apply blast
+  using blob_complete_R apply blast
+  using tree_complete_R apply blast
+  using blob_ref_cong_R apply blast
+  using tree_ref_cong_R apply blast
+  using blob_ref_complete_R apply blast
+  using tree_ref_complete_R apply blast
+  using R'_from_R R'_impl_R R'_thunk_to_encode_strict
+  apply presburger
+  using R'_from_R R'_impl_R R'_thunk_to_encode_shallow
+  apply presburger
+  using R'_from_R R'_impl_R R'_tree_to_application_thunk
+  apply presburger
+  using R'_impl_R R'_tree_to_selection_thunk R'orR_to_R'
+  apply presburger
+  using R'_from_R R'_impl_R digestion_thunk_cong_R'
+  apply presburger
+  using R'_from_R R'_impl_R identification_thunk_cong_R'
+  apply presburger
+  using R_preserve_tree_ref apply blast
+  using R_preserve_tree_ref_or_encode_rev apply blast
+  using R_preserve_blob_ref apply blast
+  using R_preserve_blob_ref_or_encode_rev apply blast
+  using R_preserve_tree apply blast
+  using R_preserve_tree_or_encode_rev apply blast
+  using R_preserve_blob apply blast
+  using R_preserve_blob_or_encode_rev apply blast
+  using R_preserve_thunk apply blast
+  using R_encode_execute apply blast
+  using R_strict_encode_reasons apply blast
+  using R_shallow_encode_reasons apply blast
+  using R_not_shallow_strict apply blast
+  using R_not_strict_shallow apply blast
+  using R_encode_execute_rev_does_not_exist apply blast
+  using R_thunk_reasons apply blast
+  apply blast
+  using assms apply blast
+  done
+
+lemma force_R:
+  assumes "R (Thunk h1) (Thunk h2)"
+  shows "rel_opt (relaxed_X R) (force h1) (force h2)"
+  apply (rule_tac forces_X)
+  using blob_cong_R apply blast
+  using tree_cong_R apply blast
+  using blob_complete_R apply blast
+  using tree_complete_R apply blast
+  using blob_ref_cong_R apply blast
+  using tree_ref_cong_R apply blast
+  using blob_ref_complete_R apply blast
+  using tree_ref_complete_R apply blast
+  using R'_from_R R'_impl_R R'_thunk_to_encode_strict
+  apply presburger
+  using R'_from_R R'_impl_R R'_thunk_to_encode_shallow
+  apply presburger
+  using R'_from_R R'_impl_R R'_tree_to_application_thunk
+  apply presburger
+  using R'_impl_R R'_tree_to_selection_thunk R'orR_to_R'
+  apply presburger
+  using R'_from_R R'_impl_R digestion_thunk_cong_R'
+  apply presburger
+  using R'_from_R R'_impl_R identification_thunk_cong_R'
+  apply presburger
+  using R_preserve_tree_ref apply blast
+  using R_preserve_tree_ref_or_encode_rev apply blast
+  using R_preserve_blob_ref apply blast
+  using R_preserve_blob_ref_or_encode_rev apply blast
+  using R_preserve_tree apply blast
+  using R_preserve_tree_or_encode_rev apply blast
+  using R_preserve_blob apply blast
+  using R_preserve_blob_or_encode_rev apply blast
+  using R_preserve_thunk apply blast
+  using R_encode_execute apply blast
+  using R_strict_encode_reasons apply blast
+  using R_shallow_encode_reasons apply blast
+  using R_not_shallow_strict apply blast
+  using R_not_strict_shallow apply blast
+  using R_encode_execute_rev_does_not_exist apply blast
+  using R_thunk_reasons apply blast
+  apply blast
+  using assms apply blast
+  done
+
 end
