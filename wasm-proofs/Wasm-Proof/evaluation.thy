@@ -1465,4 +1465,73 @@ lemma value_handle_not_encode:
   shows "\<not> (\<exists>e. h = Encode e)"
   using assms value_handle.simps by blast
 
+lemma value_tree_eval_to_itself:
+  assumes "value_tree t"
+  shows "eval (HTreeObj t) = Some (HTreeObj t)"
+  using assms
+proof (induction t rule: wfp_induct[OF wfp_tree_child])
+  case (1 x)
+  let ?raw = "get_tree_raw x"
+  have "\<forall> i < length ?raw. eval (?raw ! i) = Some (?raw ! i)"
+  proof (intro allI impI) 
+    fix i
+    assume "i < length ?raw"
+    show "eval (?raw ! i) = Some (?raw ! i)"
+    proof (cases "?raw ! i")
+      case (Data d)
+      then show ?thesis
+      proof (cases d)
+        case (Object obj)
+        then show ?thesis
+        proof (cases obj)
+          case (BlobObj)
+          then show ?thesis
+            by (simp add: Data Object eval_hs)
+        next
+          case (TreeObj t)
+          then have "tree_child t x"
+            using tree_child_def
+            using Data Object
+            by (metis \<open>i < length (get_tree_raw x)\<close> nth_mem)
+          moreover have "value_tree t"
+            by (metis "1.prems" Data Data.distinct(1) Data.inject(1) Object Object.distinct(1)
+                Object.inject(2) TreeObj \<open>i < length (get_tree_raw x)\<close> handle.distinct(1)
+                handle.inject(1) list_all_length value_handle.simps value_tree.cases)
+          ultimately show ?thesis
+            using 1
+            using Data Object TreeObj by auto
+        qed
+      next
+        case (Ref)
+        then show ?thesis
+          by (simp add: Data eval_hs)
+      qed
+    next
+      case (Thunk)
+      then show ?thesis
+        by (simp add: Thunk eval_hs)
+    next
+      case (Encode)
+      then show ?thesis
+        by (metis "1.prems" \<open>i < length (get_tree_raw x)\<close> list_all_length
+            value_handle_not_encode value_tree.cases)
+    qed
+  qed
+  then have "list_all2 (\<lambda>x y. evals_to x y) ?raw ?raw"
+    by (simp add: eval_some list_all2_conv_all_nth)
+  then have "eval (HTreeObj (create_tree ?raw)) = Some (HTreeObj (create_tree ?raw))"
+    using eval_entry_to_eval_tree by presburger
+
+  then show ?case
+    by simp
+qed
+
+theorem value_handle_eval_to_itself:
+  assumes "value_handle h"
+  shows "eval h = Some h"
+  using value_tree_eval_to_itself assms eval_hs
+  apply (cases h; simp_all)
+  apply (case_tac x1; simp_all; case_tac x1a; simp_all add: value_handle.simps)
+  using value_handle_not_encode by blast
+
 end

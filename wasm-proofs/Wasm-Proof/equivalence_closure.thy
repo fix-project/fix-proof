@@ -796,6 +796,21 @@ lemma lower_to_lift:
   using R_preserve_blob_ref apply blast
   using assms by auto
 
+lemma lift_to_lower:
+  assumes "R (lift (Data d1)) (lift (Data d2))"
+  shows "R (lower (Data d1)) (lower (Data d2))"
+  apply (rule_tac lift_to_lower)
+  using blob_cong_R apply blast
+  using tree_cong_R apply blast
+  using blob_complete_R apply blast
+  using tree_complete_R apply blast
+  apply blast+
+  using blob_ref_complete_R apply blast
+  using tree_ref_complete_R apply presburger
+  using R_preserve_tree apply blast
+  using R_preserve_blob apply blast
+  using assms by auto
+
 lemma lower_to_lift_cancel:
   assumes "lower (Data d) = Data d'"
   shows "lift (Data d) = lift (Data d')"
@@ -859,6 +874,74 @@ lemma strict_to_relaxed:
   shows "relaxed_X R (Encode (Strict x)) (Data d)"
   using assms execute_strict_to_obj relaxed_X_def by fastforce
 
+lemma R_shallow_encode_to_strict_encode:
+  assumes "R (Encode (Shallow e1)) (Encode (Shallow e2))"
+  shows "R (Encode (Strict e1)) (Encode (Strict e2))"
+  using assms
+proof -
+  have "rel_opt R (execute (Shallow e1)) (execute (Shallow e2))"
+  using R_shallow_encode_reasons assms by blast
+  then show ?thesis
+  proof (cases "execute (Shallow e1)")
+    case None
+    then show ?thesis
+      by (metis Encode.simps(5,6) None_eq_map_option_iff REvalStrictNone
+          \<open>rel_opt R (execute (Shallow e1)) (execute (Shallow e2))\<close>
+          execute_hs not_Some_eq rel_opt.simps(4))
+  next
+    case (Some r1)
+    then obtain r2 where "execute (Shallow e2) = Some r2" and "R r1 r2"
+      using \<open>rel_opt R (execute (Shallow e1)) (execute (Shallow e2))\<close>
+      by (metis execute_deterministic option.distinct(1)
+          rel_opt.elims(2))
+    then obtain d1 d2 where "execute (Shallow e1) = Some (Data d1)" and "execute (Shallow e2) = Some (Data d2)" and "R (Data d1) (Data d2)"
+      using Some
+      using execute_shallow_to_ref by blast
+    then have "execute (Strict e1) = Some (lift (Data d1))" and "execute (Strict e2) = Some (lift (Data d2))" and "R (lift (Data d1)) (lift (Data d2))"
+      using execute_shallow_to_lift apply blast
+      using \<open>execute (Shallow e2) = Some (Data d2)\<close>
+        execute_shallow_to_lift apply blast
+      using \<open>R (Data d1) (Data d2)\<close> data_to_lift relaxed_X_def
+      by auto
+    then show ?thesis 
+      by blast
+  qed
+qed
+
+lemma R_strict_encode_to_shallow_encode:
+  assumes "R (Encode (Strict e1)) (Encode (Strict e2))"
+  shows "R (Encode (Shallow e1)) (Encode (Shallow e2))"
+  using assms
+proof -
+  have "rel_opt R (execute (Strict e1)) (execute (Strict e2))"
+  using R_strict_encode_reasons assms by blast
+  then show ?thesis
+  proof (cases "execute (Strict e1)")
+    case None
+    then show ?thesis
+      by (metis Encode.simps(5,6) None_eq_map_option_iff REvalShallowNone
+          \<open>rel_opt R (execute (Strict e1)) (execute (Strict e2))\<close>
+          execute_hs not_Some_eq rel_opt.simps(4))
+  next
+    case (Some r1)
+    then obtain r2 where "execute (Strict e2) = Some r2" and "R r1 r2"
+      using \<open>rel_opt R (execute (Strict e1)) (execute (Strict e2))\<close>
+        rel_opt.elims(1) by force
+    then obtain d1 d2 where "execute (Strict e1) = Some (Data d1)" and "execute (Strict e2) = Some (Data d2)" and "R (Data d1) (Data d2)"
+      using Some
+      using execute_strict_to_obj by blast
+    then have "execute (Shallow e1) = Some (lower (Data d1))" and "execute (Shallow e2) = Some (lower (Data d2))" and "R (lower (Data d1)) (lower (Data d2))"
+      using execute_strict_to_lower apply presburger
+      using \<open>execute (Strict e2) = Some (Data d2)\<close>
+        execute_strict_to_lower apply presburger
+      by (metis R'_from_R R'_impl_R R'_lift_to_lower_data
+          \<open>R (Data d1) (Data d2)\<close> \<open>execute (Strict e1) = Some (Data d1)\<close>
+          \<open>execute (Strict e2) = Some (Data d2)\<close> execute_strict_to_obj
+          lift.simps(1) lift_data.simps(3))
+    then show ?thesis 
+      by blast
+  qed
+qed
 
 lemma think_to_eq:
   assumes "eq h1 h2"
@@ -1137,10 +1220,261 @@ next
   qed
 qed
 
+fun lower_data_and_encode :: "handle \<Rightarrow> handle"
+  where
+  "lower_data_and_encode (Encode (Strict x)) = (Encode (Shallow x))"
+| "lower_data_and_encode (Data x) = lower (Data x)"
+| "lower_data_and_encode (Thunk t) = Thunk t"
+| "lower_data_and_encode (Encode (Shallow x)) = Encode (Shallow x)"
+
+lemma eq_to_lower:
+  assumes "eq h1 h2"
+  shows "eq (lower_data_and_encode h1) (lower_data_and_encode h2)"
+  using assms
+  unfolding eq_def
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case
+    by blast
+next
+  case (step y z)
+  then show ?case
+  proof (cases y)
+    case (Data dy)
+    then have Datay: "y = Data dy" .
+
+    show ?thesis
+    proof (cases z)
+      case (Data dz)
+      then have "R (Data dy) (Data dz) \<or> R (Data dz) (Data dy)"
+        using Datay step.hyps(2) by force
+      then have "R (lower (Data dy)) (lower (Data dz)) \<or> R (lower (Data dz)) (lower (Data dy))"
+        by (metis R'_impl_R R'_lift_to_lower_data R_to_R' data_to_lift
+            handle.simps(10) relaxed_X_def)
+      then have "eq (lower_data_and_encode y) (lower_data_and_encode z)"
+        using Data Datay by auto
+      then show ?thesis
+        by (meson eq_def equivclp_trans step.IH)
+    next
+      case (Thunk)
+      then show ?thesis
+        using Datay R_preserve_thunk step.hyps(2) by blast
+    next
+      case (Encode ez)
+      then have "execute ez = Some y"
+        using Data step.hyps(2)
+        using R_encode_execute R_encode_execute_rev_does_not_exist execute_unique
+        by blast
+      then have "R (lower_data_and_encode (Encode ez)) (lower_data_and_encode y)"
+      proof (cases ez)
+        case (Strict x1)
+        then show ?thesis
+          using Datay REvalStep \<open>execute ez = Some y\<close> execute_strict_to_lower
+            lower_data_and_encode.simps(1,2) by presburger
+      next
+        case (Shallow x2)
+        then show ?thesis
+          by (metis REvalStep \<open>execute ez = Some y\<close> execute_shallow_to_ref
+              lower.simps(1) lower_data.simps(1)
+              lower_data_and_encode.simps(2,4))
+      qed
+      then show ?thesis
+        by (metis Encode equivclp_into_equivclp step.IH)
+    qed
+  next
+    case (Thunk ty)
+    then show ?thesis
+      by (metis R_preserve_thunk equivclp_into_equivclp
+          lower_data_and_encode.simps(3) step.IH step.hyps(2))
+  next
+    case (Encode ey)
+    then have Encodey: "y = Encode ey" .
+
+    show ?thesis
+    proof (cases z)
+      case (Data dz)
+
+      then have "execute ey = Some z"
+        using Data step.hyps(2)
+        using R_encode_execute R_encode_execute_rev_does_not_exist execute_unique
+        using Encode by blast
+      then have "R (lower_data_and_encode (Encode ey)) (lower_data_and_encode z)"
+      proof (cases ey)
+        case (Strict x1)
+        then show ?thesis
+          using Data \<open>execute ey = Some z\<close> execute_strict_to_lower
+          by auto
+      next
+        case (Shallow x2)
+        then show ?thesis
+          using \<open>execute ey = Some z\<close> execute_shallow_to_ref
+          by fastforce
+      qed
+      then show ?thesis
+        by (metis Encode equivclp_into_equivclp step.IH)
+    next
+      case (Thunk x2)
+      then show ?thesis
+        using Encode R_preserve_thunk step.hyps(2) by blast
+    next
+      case (Encode ez)
+      then have "R (lower_data_and_encode (Encode ey)) (lower_data_and_encode (Encode ez)) \<or> R (lower_data_and_encode (Encode ez)) (lower_data_and_encode (Encode ey))"
+        using Encodey step.hyps(2)
+        apply (cases ey; cases ez; simp_all)
+        using R_strict_encode_to_shallow_encode apply presburger
+        using R_not_shallow_strict R_not_strict_shallow apply blast
+        using R_not_shallow_strict R_not_strict_shallow by blast
+      then show ?thesis
+        by (metis Encode Encodey converse_r_into_equivclp equivp_def
+            equivp_evquivclp step.IH)
+    qed
+  qed
+qed
+
+corollary eq_blob_to_ref:
+  assumes "eq (HBlobObj b1) (HBlobObj b2)"
+  shows "eq (HBlobRef b1) (HBlobRef b2)"
+  using assms eq_to_lower by force
+
+corollary eq_tree_to_ref:
+  assumes "eq (HTreeObj b1) (HTreeObj b2)"
+  shows "eq (HTreeRef b1) (HTreeRef b2)"
+  using assms eq_to_lower by force
+
+corollary eq_strict_to_shallow:
+  assumes "eq (Encode (Strict b1)) (Encode (Strict b2))"
+  shows "eq (Encode (Shallow b1)) (Encode (Shallow b2))"
+  using assms eq_to_lower by force
+
+fun lift_data_and_encode :: "handle \<Rightarrow> handle"
+  where
+  "lift_data_and_encode (Encode (Shallow x)) = (Encode (Strict x))"
+| "lift_data_and_encode (Data x) = lift (Data x)"
+| "lift_data_and_encode (Thunk t) = Thunk t"
+| "lift_data_and_encode (Encode (Strict x)) = Encode (Strict x)"
+
+lemma eq_to_lift:
+  assumes "eq h1 h2"
+  shows "eq (lift_data_and_encode h1) (lift_data_and_encode h2)"
+  using assms
+  unfolding eq_def
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case
+    by blast
+next
+  case (step y z)
+  then show ?case
+  proof (cases y)
+    case (Data dy)
+    then have Datay: "y = Data dy" .
+
+    show ?thesis
+    proof (cases z)
+      case (Data dz)
+      then have "R (Data dy) (Data dz) \<or> R (Data dz) (Data dy)"
+        using Datay step.hyps(2) by force
+      then have "R (lift (Data dy)) (lift (Data dz)) \<or> R (lift (Data dz)) (lift (Data dy))"
+        using data_to_lift relaxed_X_def by auto
+      then have "eq (lift_data_and_encode y) (lift_data_and_encode z)"
+        using Data Datay by auto
+      then show ?thesis
+        by (meson eq_def equivclp_trans step.IH)
+    next
+      case (Thunk)
+      then show ?thesis
+        using Datay R_preserve_thunk step.hyps(2) by blast
+    next
+      case (Encode ez)
+      then have "execute ez = Some y"
+        using Data step.hyps(2)
+        using R_encode_execute R_encode_execute_rev_does_not_exist execute_unique
+        by blast
+      then have "R (lift_data_and_encode (Encode ez)) (lift_data_and_encode y)"
+      proof (cases ez)
+        case (Strict x1)
+        then show ?thesis
+          using \<open>execute ez = Some y\<close> execute_strict_to_obj
+          by fastforce
+      next
+        case (Shallow x2)
+        then show ?thesis
+          using Datay \<open>execute ez = Some y\<close> execute_shallow_to_lift
+          by auto
+      qed
+      then show ?thesis
+        by (metis Encode equivclp_into_equivclp step.IH)
+    qed
+  next
+    case (Thunk ty)
+    then show ?thesis
+      by (metis R_preserve_thunk equivclp_into_equivclp
+          lift_data_and_encode.simps(3) step.IH step.hyps(2))
+  next
+    case (Encode ey)
+    then have Encodey: "y = Encode ey" .
+
+    show ?thesis
+    proof (cases z)
+      case (Data dz)
+
+      then have "execute ey = Some z"
+        using Data step.hyps(2)
+        using R_encode_execute R_encode_execute_rev_does_not_exist execute_unique
+        using Encode by blast
+      then have "R (lift_data_and_encode (Encode ey)) (lift_data_and_encode z)"
+      proof (cases ey)
+        case (Strict x1)
+        then show ?thesis
+          using \<open>execute ey = Some z\<close> execute_strict_to_obj
+          by fastforce
+      next
+        case (Shallow x2)
+        then show ?thesis
+          using Data REvalStep \<open>execute ey = Some z\<close> execute_shallow_to_lift
+            lift_data_and_encode.simps(1,2) by presburger
+      qed
+      then show ?thesis
+        by (metis Encodey equivclp_into_equivclp step.IH)
+    next
+      case (Thunk x2)
+      then show ?thesis
+        using Encode R_preserve_thunk step.hyps(2) by blast
+    next
+      case (Encode ez)
+      then have "R (lift_data_and_encode (Encode ey)) (lift_data_and_encode (Encode ez)) \<or> R (lift_data_and_encode (Encode ez)) (lift_data_and_encode (Encode ey))"
+        using Encodey step.hyps(2)
+        apply (cases ey; cases ez; simp_all)
+        using R_not_shallow_strict R_not_strict_shallow apply blast
+        using R_not_shallow_strict R_not_strict_shallow apply blast
+        using R_shallow_encode_to_strict_encode by blast
+      then show ?thesis
+        by (metis Encode Encodey converse_r_into_equivclp equivp_def
+            equivp_evquivclp step.IH)
+    qed
+  qed
+qed
+
+corollary eq_ref_to_blob:
+  assumes "eq (HBlobRef b1) (HBlobRef b2)"
+  shows "eq (HBlobObj b1) (HBlobObj b2)"
+  using assms eq_to_lift by force
+
+corollary eq_ref_to_tree:
+  assumes "eq (HTreeRef b1) (HTreeRef b2)"
+  shows "eq (HTreeObj b1) (HTreeObj b2)"
+  using assms eq_to_lift by force
+
+corollary eq_shallow_to_strict:
+  assumes "eq (Encode (Shallow b1)) (Encode (Shallow b2))"
+  shows "eq (Encode (Strict b1)) (Encode (Strict b2))"
+  using assms eq_to_lift by force
+
+
 theorem force_some_to_eq:
   assumes "force th1 = Some r1"
   assumes "force th2 = Some r2"
-  assumes "eq r1 r2"
+  assumes "relaxed_X eq r1 r2"
   shows "eq (Thunk th1) (Thunk th2)"
 proof -
   obtain d1 d2 where Data1: "r1 = Data d1" and Data2: "r2 = Data d2"
@@ -1151,17 +1485,249 @@ proof -
     using Data1 assms(1)
     using force_to_the_last_thunk by blast
 
-  moreover obtain th2' where "think th2' = Some (Data d2)" and Thunk2: "eq (Thunk th2) (Thunk th2')"
+  obtain th2' where "think th2' = Some (Data d2)" and Thunk2: "eq (Thunk th2) (Thunk th2')"
     using Data2 assms(2)
     using force_to_the_last_thunk by blast
 
-  ultimately have "eq (Thunk th1') (Thunk th2')"
-    using think_to_eq
-    using Data1 Data2 assms(3) data_to_lift by blast
+  have "eq (Thunk th1') (Thunk th2')"
+  proof (cases d1)
+    case (Object x1)
+    then have Object1: "d1 = Object x1" .
+
+    show ?thesis
+    proof (cases d2)
+      case (Object x2)
+      then have "eq (Data d1) (Data d2)"
+        using Object1
+        using Data1 Data2 assms(3) relaxed_X_def by auto
+      then show ?thesis
+        using RSelf \<open>think th1' = Some (Data d1)\<close>
+          \<open>think th2' = Some (Data d2)\<close> data_to_lift think_to_eq
+        by force
+    next
+      case (Ref x2)
+
+      let ?inter = "lift (Data d2)"
+      obtain thinter where "think thinter = Some ?inter"
+        using thunk_for_all_data by fastforce
+
+      moreover have "R (lift ?inter) (lift (Data d2))"
+        by (metis Data.exhaust RSelf lift.simps(1) lift_data.simps(3)
+            lift_not_ref)
+      ultimately have R2: "R (Thunk thinter) (Thunk th2')"
+        by (simp add: RThunkSomeResData
+            \<open>think th2' = Some (Data d2)\<close>)
+
+      have "eq (lift ?inter) (lift (Data d1))"
+        using Object1 Data1 Data2 assms(3)
+        by (metis Data.exhaust eq_def equivclp_sym handle.simps(10)
+            lift.simps(1) lift_data.simps(3) lift_not_ref
+            relaxed_X_def)
+      then have "eq (Thunk thinter) (Thunk th1')"
+        using Object1 RSelf \<open>R (lift (lift (Data d2))) (lift (Data d2))\<close>
+          \<open>think th1' = Some (Data d1)\<close>
+          \<open>think thinter = Some (lift (Data d2))\<close> data_to_lift think_to_eq
+        by auto
+
+      then show ?thesis using R2
+        by (meson eq_def equivclp_into_equivclp equivclp_sym)
+    qed
+  next
+    case (Ref r1)
+    then have Ref1: "d1 = Ref r1" .
+    
+    show ?thesis
+    proof (cases d2)
+      case (Object x1)
+
+      let ?inter = "lift (Data d1)"
+      obtain thinter where "think thinter = Some ?inter"
+        using thunk_for_all_data by fastforce
+
+      moreover have "R (lift ?inter) (lift (Data d1))"
+        by (metis Data.exhaust RSelf lift.simps(1) lift_data.simps(3)
+            lift_not_ref)
+      ultimately have R2: "R (Thunk thinter) (Thunk th1')"
+        by (simp add: RThunkSomeResData
+            \<open>think th1' = Some (Data d1)\<close>)
+
+      have "eq (lift ?inter) (lift (Data d2))"
+        using Object Data1 Data2 assms(3)
+        by (metis Data.exhaust handle.simps(10)
+            lift.simps(1) lift_data.simps(3) lift_not_ref
+            relaxed_X_def)
+      then have "eq (Thunk thinter) (Thunk th2')"
+        by (smt (verit, ccfv_SIG) Object RSelf
+            \<open>think th2' = Some (Data d2)\<close>
+            \<open>think thinter = Some (lift (Data d1))\<close> data_to_lift
+            lift.simps(1) lift_data.simps(3) lift_to_lower_cancel
+            lower.simps(1) lower_to_lift_cancel think_to_eq)
+
+      then show ?thesis using R2
+        by (meson eq_def equivclp_into_equivclp equivclp_sym)
+    next
+      case (Ref r2)
+
+      then have "eq (Data d1) (Data d2)"
+        using Ref1
+        using Data1 Data2 assms(3) relaxed_X_def eq_blob_to_ref eq_tree_to_ref
+        apply (cases r1; cases r2; simp_all)
+        apply (metis eq_def eq_to_lower lower.simps(1)
+            lower_data.simps(2,3) lower_data_and_encode.simps(2))
+        by (metis eq_def eq_to_lower lower.simps(1) lower_data.simps(2,3)
+            lower_data_and_encode.simps(2))
+
+      then show ?thesis
+        using RSelf \<open>think th1' = Some (Data d1)\<close>
+          \<open>think th2' = Some (Data d2)\<close> data_to_lift think_to_eq
+        by force
+    qed
+  qed
 
   then show ?thesis
     using Thunk1 Thunk2
     by (meson eq_def equivclp_sym equivclp_trans)
+qed
+
+fun create_strict_encode :: "handle \<Rightarrow> handle"
+  where 
+  "create_strict_encode (Thunk t) = (Encode (Strict t))"
+| "create_strict_encode h = h"
+
+lemma eq_thunk_to_strict_encode:
+  assumes "eq (Thunk t1) (Thunk t2)"
+  shows "eq (create_strict_encode (Thunk t1)) (create_strict_encode (Thunk t2))"
+  using assms
+  unfolding eq_def
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case
+    by simp
+next
+  case (step y z)
+  then obtain ty where "y = Thunk ty"
+    using eq_preserve_thunk by auto
+  moreover then obtain tz where "z = Thunk tz"
+    using R_preserve_thunk step.hyps(2) by blast
+  ultimately have "eq (create_strict_encode y) (create_strict_encode z)"
+    by (metis R'_from_R R'_impl_R R'_thunk_to_encode_strict
+        converse_r_into_equivclp create_strict_encode.simps(1) eq_def
+        r_into_equivclp step.hyps(2))
+  then show ?case
+    by (meson eq_def equivclp_trans step.IH)
+qed
+
+fun create_shallow_encode :: "handle \<Rightarrow> handle"
+  where 
+  "create_shallow_encode (Thunk t) = (Encode (Shallow t))"
+| "create_shallow_encode h = h"
+
+lemma eq_thunk_to_shallow_encode:
+  assumes "eq (Thunk t1) (Thunk t2)"
+  shows "eq (create_shallow_encode (Thunk t1)) (create_shallow_encode (Thunk t2))"
+  using assms
+  unfolding eq_def
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case
+    by simp
+next
+  case (step y z)
+  then obtain ty where "y = Thunk ty"
+    using eq_preserve_thunk by auto
+  moreover then obtain tz where "z = Thunk tz"
+    using R_preserve_thunk step.hyps(2) by blast
+  ultimately have "eq (create_shallow_encode y) (create_shallow_encode z)"
+    by (metis R'_from_R R'_impl_R R'_thunk_to_encode_strict
+        R_strict_encode_to_shallow_encode converse_r_into_equivclp
+        create_shallow_encode.simps(1) eq_def r_into_equivclp
+        step.hyps(2))
+  then show ?case
+    by (meson eq_def equivclp_trans step.IH)
+qed
+
+lemma eq_blob_same_data:
+  assumes "eq h1 h2"
+  shows "\<And>b1 b2. h1 = HBlobObj b1 
+             \<Longrightarrow> (\<exists>b2. h2 = HBlobObj b2 \<and> get_blob_data b1 = get_blob_data b2) \<or> (\<exists>e2 b2. h2 = Encode (Strict e2) \<and> eval h2 = Some (HBlobObj b2) \<and> get_blob_data b1 = get_blob_data b2)"
+  using assms
+  unfolding eq_def
+proof (induction rule: equivclp_induct)
+  case base
+  then show ?case
+    by auto
+next
+  case (step y z)
+  then show ?case
+  proof (cases y)
+    case (Data)
+    then obtain bloby where Bloby: "y = HBlobObj bloby" 
+      using step.IH step.prems by blast
+    then show ?thesis
+    proof (cases "\<exists>e. z = Encode e")
+      case True
+      then obtain e where Encodez: "z = Encode e" by blast
+      then have "execute e = Some y"
+        using Data R_encode_execute R_encode_execute_rev_does_not_exist
+          execute_unique step.hyps(2) by blast
+      then have "eval z = Some y"
+        using eval_hs Encodez Bloby
+        by simp
+      then show ?thesis
+        by (metis Data Encodez R_encode_execute_rev_does_not_exist
+            R_preserve_blob_or_encode_rev blob_cong_R handle.distinct(3)
+            step.IH step.hyps(2) step.prems)
+    next
+      case False
+      then obtain blobz where "z = HBlobObj blobz"
+        using Bloby R_or_preserve_blob step.hyps(2) by blast
+      moreover then have "get_blob_data bloby = get_blob_data blobz"
+        using Bloby blob_cong_R step.hyps(2) by presburger
+      ultimately show ?thesis 
+        using Bloby step.IH step.prems by force
+    qed
+  next
+    case (Thunk x2)
+    then show ?thesis
+      using step.IH step.prems by auto
+  next
+    case (Encode encodey)
+    then obtain bloby where Evaly: "eval y = Some (HBlobObj bloby)" and "get_blob_data bloby = get_blob_data b1"
+      using step.IH step.prems by auto
+    show ?thesis
+    proof (cases "\<exists>e. z = Encode e")
+      case True
+      then obtain encodez where "z = Encode encodez" by blast
+      then have "rel_opt R (eval y) (eval z) \<or> rel_opt R (eval z) (eval y)"
+        using eval_R step.hyps(2) by blast
+      then obtain res where "eval z = Some res"
+                      and "R (HBlobObj bloby) res \<or> R res (HBlobObj bloby)"
+        by (metis \<open>eval y = Some (HBlobObj bloby)\<close> option.exhaust
+            rel_opt.simps(2,3,4))
+      then obtain blobz where "eval z = Some (HBlobObj blobz)"
+                        and   "get_blob_data blobz = get_blob_data bloby"
+        by (metis HBlobObj_def R'_from_R R_preserve_blob
+            R_preserve_blob_or_encode_rev R_preserve_thunk blob_cong_R'
+            eval_not_encode handle.distinct(1,3))
+      then show ?thesis
+        by (metis HBlobObj_def \<open>get_blob_data bloby = get_blob_data b1\<close>
+            \<open>z = Encode encodez\<close> eq_def eq_preserve_blob_or_encode
+            equivclp_sym eval_to_eq handle.simps(7))
+    next
+      case False
+      then have "execute encodey = Some z"
+        using Encode R_encode_execute R_encode_execute_rev_does_not_exist
+          execute_unique step.hyps(2) by blast
+      then have "z = HBlobObj bloby"
+        using Evaly Encode eval_hs
+        apply (cases encodey; simp_all)
+        using eq_preserve_blob_or_encode step.hyps(1) step.prems
+        apply fastforce
+        using step.IH step.prems by auto
+      then show ?thesis
+        by (simp add: \<open>get_blob_data bloby = get_blob_data b1\<close>)
+    qed
+  qed
 qed
 
 end

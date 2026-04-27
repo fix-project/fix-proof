@@ -45,6 +45,9 @@ axiomatization where
   get_tree_raw_create_tree[simp]:
   "get_tree_raw (create_tree xs) = xs"
   and
+  create_tree_get_tree_raw[simp]:
+  "create_tree (get_tree_raw l) = l"
+  and
   from_nat_to_nat[simp]:
   "from_nat (to_nat r) = r"
   and
