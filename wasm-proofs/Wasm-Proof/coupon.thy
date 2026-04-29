@@ -68,10 +68,6 @@ and coupon_eq :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
   "coupon_eval (Data (Ref r)) (Data (Ref r))"
 | CouponEvalThunk:
   "coupon_eval (Thunk t) (Thunk t)"
-| CouponEvalEncode:
-  "coupon_eq (Encode d) h \<Longrightarrow>
-   coupon_eval h h' \<Longrightarrow>
-   coupon_eval (Encode d) h'"
 | CouponEqApplication:
   "coupon_eq (HTreeObj t1) (HTreeObj t2) \<Longrightarrow>
    coupon_eq (Thunk (Application t1)) (Thunk (Application t2))"
@@ -340,17 +336,6 @@ next
   then show ?case
     by (simp add: thunk_handle value_handle_eval_to_itself)
 next
-  case (CouponEvalEncode d h h')
-  then have "rel_opt eq (eval (Encode d)) (eval h)"
-    using eq_eval by presburger
-  then obtain r' where "eval (Encode d) = Some r'" and "eq r' h'"
-    using CouponEvalEncode 
-    apply (cases "eval (Encode d)"; simp)
-    by (force, metis eq_def equivclp_sym equivclp_trans
-        rel_opt.simps(2))
-  then show ?case
-    by (meson CouponEvalEncode.IH(2) eq_def equivclp_sym)
-next
   case (CouponEqApplication t1 t2)
   then show ?case
     using eq_tree_to_application_thunk by auto
@@ -382,7 +367,6 @@ next
   moreover obtain r where "eval h1 = Some r" and "eq h2 r" and "value_handle h2"
     using CouponEvalEq by auto
   ultimately obtain r' where "eval h3 = Some r'" and "eq h2 r'" 
-    using CouponEvalEncode 
     apply (cases "(eval h3)"; simp)
     by (meson equivclp_trans)
   then show ?case
