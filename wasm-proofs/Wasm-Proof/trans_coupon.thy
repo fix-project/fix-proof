@@ -3,11 +3,11 @@ theory trans_coupon
 begin
 
 lemma make_some:
-  assumes "make_trans_coupon_raw coupons l r = Some res"
+  assumes "make_trans_coupon coupons l r = Some res"
   shows "\<exists>e1 e2 xs e1l e1r e2l e2r.
          coupons = (e1 # e2 # xs)
-       \<and> is_eq_coupon_api e1
-       \<and> is_eq_coupon_api e2
+       \<and> is_eq_coupon e1
+       \<and> is_eq_coupon e2
        \<and> get_coupon_lhs e1 = Some e1l
        \<and> get_coupon_rhs e1 = Some e1r
        \<and> get_coupon_lhs e2 = Some e2l
@@ -15,19 +15,20 @@ lemma make_some:
        \<and> is_equal e1r e2l
        \<and> is_equal l e1l
        \<and> is_equal r e2r
-       \<and> res = create_eq_coupon l r"
+       \<and> res = create_coupon Eq l r"
 proof -
   obtain e1 e2 xs e1l e1r e2l e2r where
     1:  "coupons = (e1 # e2 # xs)
-       \<and> is_eq_coupon_api e1
-       \<and> is_eq_coupon_api e2
+       \<and> is_eq_coupon e1
+       \<and> is_eq_coupon e2
        \<and> get_coupon_lhs e1 = Some e1l
        \<and> get_coupon_rhs e1 = Some e1r
        \<and> get_coupon_lhs e2 = Some e2l
        \<and> get_coupon_rhs e2 = Some e2r"
-  by (metis assms is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def make_trans_coupon_raw.elims option.simps(3))
+    by (metis assms eq_lhs_exist eq_rhs_exist make_trans_coupon.elims
+        not_None_eq)
 
-  then have "make_trans_coupon_raw coupons l r = (if (is_equal e1r e2l \<and> is_equal l e1l \<and> is_equal r e2r) then Some (create_eq_coupon l r) else None)"
+  then have "make_trans_coupon coupons l r = (if (is_equal e1r e2l \<and> is_equal l e1l \<and> is_equal r e2r) then Some (create_coupon Eq l r) else None)"
     by simp
 
   then show ?thesis by (metis "1" assms option.inject option.simps(3))
@@ -36,8 +37,8 @@ qed
 lemma make_some_rev:
   assumes "\<exists>e1 e2 xs e1l e1r e2l e2r.
          coupons = (e1 # e2 # xs)
-       \<and> is_eq_coupon_api e1
-       \<and> is_eq_coupon_api e2
+       \<and> is_eq_coupon e1
+       \<and> is_eq_coupon e2
        \<and> get_coupon_lhs e1 = Some e1l
        \<and> get_coupon_rhs e1 = Some e1r
        \<and> get_coupon_lhs e2 = Some e2l
@@ -45,16 +46,16 @@ lemma make_some_rev:
        \<and> is_equal e1r e2l
        \<and> is_equal l e1l
        \<and> is_equal r e2r"
-  shows "make_trans_coupon_raw coupons l r = Some (create_eq_coupon l r)"
+  shows "make_trans_coupon coupons l r = Some (create_coupon Eq l r)"
   using assms by fastforce
 
 lemma make_none:
-  assumes "make_trans_coupon_raw coupons l r = None"
+  assumes "make_trans_coupon coupons l r = None"
   shows "length coupons < 2 \<or>
         (\<exists>e1 e2 xs.
          coupons = e1 # e2 # xs \<and>
-         ((\<not> is_eq_coupon_api e1 \<or> \<not>is_eq_coupon_api e2) \<or>
-          (is_eq_coupon_api e1 \<and> is_eq_coupon_api e2 \<and>
+         ((\<not> is_eq_coupon e1 \<or> \<not>is_eq_coupon e2) \<or>
+          (is_eq_coupon e1 \<and> is_eq_coupon e2 \<and>
           (\<exists>e1l e1r e2l e2r.
            get_coupon_lhs e1 = Some e1l
          \<and> get_coupon_rhs e1 = Some e1r
@@ -68,7 +69,7 @@ next
   then obtain e1 e2 xs where 1: "coupons = e1 # e2 # xs" 
     using list_length_2[of coupons] by auto
   then show ?thesis
-  proof (cases "\<not> (is_eq_coupon_api e1 \<and> is_eq_coupon_api e2)")
+  proof (cases "\<not> (is_eq_coupon e1 \<and> is_eq_coupon e2)")
     case True then show ?thesis using 1 by auto
   next
     case False
@@ -77,8 +78,7 @@ next
          \<and> get_coupon_rhs e1 = Some e1r
          \<and> get_coupon_lhs e2 = Some e2l
          \<and> get_coupon_rhs e2 = Some e2r"
-      using is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def
-      by meson
+      using eq_lhs_exist eq_rhs_exist by presburger
     then show ?thesis
       using "1" assms by force
   qed
@@ -89,8 +89,8 @@ lemma plus_52:
 (Suc (Suc (Suc (Suc (Suc (Suc (Suc(Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))))))))))))))))))))))))))))))))))))))))"
   by auto
 
-lemma make_trans_coupon_raw_run_iter:
-  assumes "make_trans_coupon_raw coupons l r = Some res"
+lemma make_trans_coupon_run_iter:
+  assumes "make_trans_coupon coupons l r = Some res"
   shows "run_iter (n + 52)
           (Config 
            (Suc n')
@@ -107,12 +107,12 @@ lemma make_trans_coupon_raw_run_iter:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref res)) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   obtain e1 e2 xs e1l e1r e2l e2r where
      1: "coupons = (e1 # e2 # xs)
-       \<and> is_eq_coupon_api e1
-       \<and> is_eq_coupon_api e2
+       \<and> is_eq_coupon e1
+       \<and> is_eq_coupon e2
        \<and> get_coupon_lhs e1 = Some e1l
        \<and> get_coupon_rhs e1 = Some e1r
        \<and> get_coupon_lhs e2 = Some e2l
@@ -120,7 +120,7 @@ proof -
        \<and> is_equal e1r e2l
        \<and> is_equal l e1l
        \<and> is_equal r e2r
-       \<and> res = create_eq_coupon l r"
+       \<and> res = create_coupon Eq l r"
     using make_some[OF assms] by auto
 
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
@@ -149,7 +149,7 @@ proof -
 qed
 
 lemma make_trans_coupon_raw_run_invoke_none:
-  assumes "make_trans_coupon_raw coupons l r = None"
+  assumes "make_trans_coupon coupons l r = None"
   shows "\<exists>msg cfg.
           run_iter (n + 52)
           (Config 

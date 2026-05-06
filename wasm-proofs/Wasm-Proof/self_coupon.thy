@@ -1,14 +1,14 @@
 theory self_coupon
-  imports Wasm_Proof_Playground isabelle_coupon
+  imports custom_method isabelle_coupon
 begin
 
 lemma ms_some:
-  assumes "make_self_coupon_raw coupons l r = Some res"
-  shows "is_equal l r \<and> res = (create_eq_coupon l r)"
-  by (metis assms make_self_coupon_raw.simps option.distinct(1) option.sel)
+  assumes "make_self_coupon coupons l r = Some res"
+  shows "is_equal l r \<and> res = (create_coupon Eq l r)"
+  by (metis assms make_self_coupon.simps option.distinct(1) option.sel)
 
 lemma make_self_coupon_raw_run_iter:
-  assumes "make_self_coupon_raw coupons l r = Some res"
+  assumes "make_self_coupon coupons l r = Some res"
   shows "run_iter  
   (n + 14)
   (Config 
@@ -26,10 +26,10 @@ lemma make_self_coupon_raw_run_iter:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref res)) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   have 1: "is_equal l r" using ms_some[OF assms] by blast
-  have 2: "res = create_eq_coupon l r" using ms_some[OF assms] by blast
+  have 2: "res = create_coupon Eq l r" using ms_some[OF assms] by blast
 
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
 
@@ -44,12 +44,12 @@ proof -
 qed
 
 lemma ms_none:
-  assumes "make_self_coupon_raw coupons l r = None"
+  assumes "make_self_coupon coupons l r = None"
   shows "\<not> is_equal l r"
   using assms by force
 
 lemma make_self_coupon_raw_run_invoke_none:
-  assumes "make_self_coupon_raw coupons l r = None"
+  assumes "make_self_coupon coupons l r = None"
   shows "\<exists>msg cfg.
          run_iter (fuel50 n)
          (Config

@@ -1,37 +1,39 @@
-theory encode_coupon
+theory eq_encode_strict_coupon
   imports custom_method isabelle_coupon
 begin
 
 lemma make_some:
-  assumes "make_encode_coupon_raw coupons l r = Some res"
+  assumes "make_eq_encode_strict_coupon coupons l r = Some res"
   shows "(\<exists>e xs l' r' l'' r''.
           coupons = e # xs
-        \<and> is_eq_coupon_api e
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs e = Some l'
         \<and> get_coupon_rhs e = Some r'
-        \<and> create_encode_api l' = Some l''
-        \<and> create_encode_api r' = Some r''
+        \<and> create_strict_encode_api l' = Some l''
+        \<and> create_strict_encode_api r' = Some r''
         \<and> is_equal l l''
         \<and> is_equal r r''
-        \<and> res = create_eq_coupon l r)"
+        \<and> res = create_coupon Eq l r)"
 proof -
-  obtain e xs where 1: "coupons = e # xs \<and> is_eq_coupon_api e"
-    by (metis assms make_encode_coupon_raw.elims option.simps(3))
+  obtain e xs where 1: "coupons = e # xs \<and> is_eq_coupon e"
+    by (metis assms make_eq_encode_strict_coupon.elims option.distinct(1))
   then obtain l' r' where 2: "get_coupon_lhs e = Some l'" and 3: "get_coupon_rhs e = Some r'"
-    by (metis is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def)
+    using eq_lhs_exist eq_rhs_exist by presburger
 
-  have "make_encode_coupon_raw coupons l r =
-       (case (create_encode_api l', create_encode_api r') of
+  have "make_eq_encode_strict_coupon coupons l r =
+       (case (create_strict_encode_api l', create_strict_encode_api r') of
          (Some l'', Some r'') \<Rightarrow>
-           (if (is_equal l l'' \<and> is_equal r r'') then Some (create_eq_coupon l r) else None)
+           (if (is_equal l l'' \<and> is_equal r r'') then Some (create_coupon Eq l r) else None)
         | _ \<Rightarrow> None)"
     by (simp add: 1 2 3)
-  then obtain l'' r'' where 4: "create_encode_api l' = Some l''" and 5: "create_encode_api r' = Some r''"
+  then obtain l'' r'' where 4: "create_strict_encode_api l' = Some l''" and 5: "create_strict_encode_api r' = Some r''"
     by (metis (no_types, lifting) assms case_prod_conv option.exhaust option.simps(4,5))
 
-  have "make_encode_coupon_raw coupons l r = 
-        (if (is_equal l l'' \<and> is_equal r r'') then Some (create_eq_coupon l r) else None)"
-    by (simp add: 1 2 3 4 5)
+  have "make_eq_encode_strict_coupon coupons l r = 
+        (if (is_equal l l'' \<and> is_equal r r'') then Some (create_coupon Eq l r) else None)"
+    using "4" "5"
+      \<open>make_eq_encode_strict_coupon coupons l r = (case (create_strict_encode_api l', create_strict_encode_api r') of (a, b) \<Rightarrow> a |>> (\<lambda>l''. b |>> (\<lambda>r''. if is_equal l l'' \<and> is_equal r r'' then Some (create_coupon coupon_type.Eq l r) else None)))\<close>
+    by auto
 
   then show ?thesis
     by (metis (no_types, lifting) "1" "2" "3" "4" "5" assms handy_if_lemma)
@@ -40,34 +42,29 @@ qed
 lemma make_some_rev:
   assumes "(\<exists>e xs l' r' l'' r''.
           coupons = e # xs
-        \<and> is_eq_coupon_api e
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs e = Some l'
         \<and> get_coupon_rhs e = Some r'
-        \<and> create_encode_api l' = Some l''
-        \<and> create_encode_api r' = Some r''
+        \<and> create_strict_encode_api l' = Some l''
+        \<and> create_strict_encode_api r' = Some r''
         \<and> is_equal l l''
         \<and> is_equal r r'')"
-  shows"make_encode_coupon_raw coupons l r = Some (create_eq_coupon l r)"
+  shows"make_eq_encode_strict_coupon coupons l r = Some (create_coupon Eq l r)"
   using assms by fastforce
 
-term " (\<exists>l'' r''.
-                create_encode_api l' = Some l'' \<and>
-                create_encode_api r' = Some r'' \<and>
-                (\<not>is_equal l l'' \<or> \<not>is_equal r r''))"
-
 lemma make_none:
-  assumes "make_encode_coupon_raw coupons l r = None"
+  assumes "make_eq_encode_strict_coupon coupons l r = None"
   shows "coupons = [] \<or>
          (\<exists>e xs. coupons = e # xs \<and>
-          (\<not>is_eq_coupon_api e \<or>
+          (\<not>is_eq_coupon e \<or>
            (\<exists>l' r'. 
-             is_eq_coupon_api e \<and>
+             is_eq_coupon e \<and>
              get_coupon_lhs e = Some l' \<and>
              get_coupon_rhs e = Some r' \<and>
-             ((create_encode_api l' = None \<or>
-              (\<exists>l''. create_encode_api l' = Some l'' \<and>
-               ((create_encode_api r' = None \<or>
-               (\<exists>r''. create_encode_api r' = Some r'' \<and>
+             ((create_strict_encode_api l' = None \<or>
+              (\<exists>l''. create_strict_encode_api l' = Some l'' \<and>
+               ((create_strict_encode_api r' = None \<or>
+               (\<exists>r''. create_strict_encode_api r' = Some r'' \<and>
                 (\<not>is_equal l l'' \<or> \<not>is_equal r r''))))))))))"
 proof (cases "coupons = []")
   case True then show ?thesis by auto
@@ -76,11 +73,11 @@ next
   then obtain e xs where 1: "coupons = e # xs" using list.exhaust_sel by blast
 
   then show ?thesis
-  proof (cases "\<not>is_eq_coupon_api e")
+  proof (cases "\<not>is_eq_coupon e")
     case True then show ?thesis using 1 by auto
   next
     case False then obtain l' r' where 2: "get_coupon_lhs e = Some l' \<and> get_coupon_rhs e = Some r'"
-      by (metis is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def)
+      using eq_lhs_exist eq_rhs_exist by presburger
 
     show ?thesis
       using 1 2 assms by fastforce
@@ -92,8 +89,8 @@ lemma plus_37:
 (Suc (Suc (Suc (Suc (Suc (Suc (Suc(Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n)))))))))))))))))))))))))))))))))))))"
   by auto
 
-lemma make_encode_coupon_raw_run_iter:
-  assumes "make_encode_coupon_raw coupons l r = Some res"
+lemma make_eq_encode_strict_coupon_run_iter:
+  assumes "make_eq_encode_strict_coupon coupons l r = Some res"
   shows "run_iter (n + 37)
           (Config 
            (Suc n')
@@ -102,7 +99,7 @@ lemma make_encode_coupon_raw_run_iter:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_encode_coupon_idx]
+                     [Invoke func_make_eq_encode_strict_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
  =
@@ -110,18 +107,18 @@ lemma make_encode_coupon_raw_run_iter:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref res)) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   obtain e xs l' r' l'' r'' where
         1: "coupons = e # xs
-        \<and> is_eq_coupon_api e
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs e = Some l'
         \<and> get_coupon_rhs e = Some r'
-        \<and> create_encode_api l' = Some l''
-        \<and> create_encode_api r' = Some r''
+        \<and> create_strict_encode_api l' = Some l''
+        \<and> create_strict_encode_api r' = Some r''
         \<and> is_equal l l''
         \<and> is_equal r r''
-        \<and> res = create_eq_coupon l r"
+        \<and> res = create_coupon Eq l r"
     using make_some[OF assms] by auto
 
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
@@ -133,8 +130,8 @@ proof -
     fixpoint_get_coupon_rhs_impl[of ?state]
     fixpoint_is_equal_impl[of ?state]
     fixpoint_create_eq_coupon_impl[of ?state]
-    fixpoint_create_encode_impl[of ?state]
-    apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_encode_coupon_idx_def)
+    fixpoint_create_strict_encode_impl[of ?state]
+    apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_encode_strict_coupon_idx_def)
     apply (table_get_local_set)
     apply (call_api_func)
     apply (if_block)
@@ -146,8 +143,8 @@ proof -
     done
 qed
 
-lemma make_encode_coupon_raw_run_invoke_none:
-  assumes "make_encode_coupon_raw coupons l r = None"
+lemma make_eq_encode_strict_coupon_run_invoke_none:
+  assumes "make_eq_encode_strict_coupon coupons l r = None"
   shows "\<exists>msg cfg.
           run_iter (n + 37)
           (Config 
@@ -157,7 +154,7 @@ lemma make_encode_coupon_raw_run_invoke_none:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_encode_coupon_idx]
+                     [Invoke func_make_eq_encode_strict_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
         = (cfg, RTrap msg)" 
@@ -170,8 +167,8 @@ proof -
     fixpoint_get_coupon_lhs_impl[of ?state]
     fixpoint_get_coupon_rhs_impl[of ?state]
     fixpoint_is_equal_impl[of ?state]
-    fixpoint_create_encode_impl[of ?state]
-    apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_encode_coupon_idx_def)
+    fixpoint_create_strict_encode_impl[of ?state]
+    apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_encode_strict_coupon_idx_def)
     apply (table_get_local_set)
     (* split on coupon = [] *)
     apply (erule disjE, simp)

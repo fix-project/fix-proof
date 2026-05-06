@@ -46,7 +46,7 @@ and
   
 (* typeless Fix api axioms *)
 axiomatization where
-  get_tree_data_api_match[simp]: 
+  get_tree_data_api_match: 
   "get_tree_data_api h i =
     (case h of
       (Data (Object (TreeObj t))) \<Rightarrow> 
@@ -54,44 +54,44 @@ axiomatization where
           Some (get_tree_data  t i) else None)
     | _ \<Rightarrow> None)" 
 and
-  get_tree_size_api_match[simp]: 
+  get_tree_size_api_match: 
   "get_tree_size_api h =
     (case h of
       (Data (Object (TreeObj t))) \<Rightarrow> Some (get_tree_size t) 
      | _ \<Rightarrow> None)" 
 and
-  create_application_thunk_api_match[simp]:
+  create_application_thunk_api_match:
   "create_application_thunk_api h =
      (case h of
        (Data (Object (TreeObj t))) \<Rightarrow> Some (Thunk (Application t))
      | _ \<Rightarrow> None)"
 and
-  create_selection_thunk_api_match[simp]:
+  create_selection_thunk_api_match:
   "create_selection_thunk_api h =
    (case h of
      (Data (Object (TreeObj t))) \<Rightarrow> Some (Thunk (Selection t))
    | (Data (Ref (TreeRef t))) \<Rightarrow> Some (Thunk (Selection t))
    | _ \<Rightarrow> None)"
 and
-  create_identification_thunk_api_match[simp]:
+  create_identification_thunk_api_match:
   "create_identification_thunk_api h =
    (case h of
      (Data d) \<Rightarrow> Some (Thunk (Identification d))
    | _ \<Rightarrow> None)"
 and
-  create_strict_encode_api_match[simp]:
+  create_strict_encode_api_match:
   "create_strict_encode_api h = 
    (case h of
      (Thunk th) \<Rightarrow> Some (Encode (Strict th))
    | _ \<Rightarrow> None)"
 and
-  create_shallow_encode_api_match[simp]:
+  create_shallow_encode_api_match:
   "create_shallow_encode_api h = 
    (case h of
      (Thunk th) \<Rightarrow> Some (Encode (Shallow th))
    | _ \<Rightarrow> None)"
 and
-  is_equal_match [simp]:
+  is_equal_match[simp]:
   "is_equal h1 h2 = (h1 = h2)"
 
 definition is_force_coupon :: "handle \<Rightarrow> bool" where
@@ -242,14 +242,14 @@ proof -
     by (metis H2 make_eq_tree_coupon.simps option.distinct(1))+
 
   then obtain tl tr where "l = HTreeObj tl" and "r = HTreeObj tr"
-    using HTreeObj_def
+    using HTreeObj_def get_tree_size_api_match
     apply (cases l; cases r; simp_all)
     by (metis Data.simps(5,6) Object.simps(5) lower_data.cases
         option.distinct(1))
 
   then have "(\<forall>i. (i < length coupons \<longrightarrow>
          (get_tree_data tl i = the (get_coupon_lhs (coupons ! i))) \<and> get_tree_data tr i = the (get_coupon_rhs (coupons ! i))))"
-    using H H2 Sizel Sizer get_tree_size_def get_tree_data_def
+    using H H2 Sizel Sizer get_tree_size_def get_tree_data_def get_tree_data_api_match get_tree_size_api_match
     by (simp, metis (no_types, lifting) is_equal_match
         option.case_eq_if option.discI)
 
@@ -257,8 +257,9 @@ proof -
          (coupon_eq (get_tree_data tl i) (get_tree_data tr i))))"
     by (metis H H1 good_eq list_all_length)
   then have "coupon_eq (HTreeObj tl) (HTreeObj tr)"
-    using coupon_force_coupon_storage_coupon_apply_coupon_slice_coupon_identify_coupon_think_coupon_eval_coupon_eq.CouponTreeEq
+    using CouponTreeEq
 get_tree_data_def get_tree_size_def Sizel Sizer
+get_tree_data_api_match get_tree_size_api_match
     by (simp add: \<open>l = HTreeObj tl\<close> \<open>r = HTreeObj tr\<close>
         list_all2_all_nthI)
 
@@ -324,7 +325,7 @@ proof -
 
   moreover have "f1r = el \<and> f2r = er \<and> f1l = l \<and> f2l = r"
            and "c = create_coupon Eq l r"
-    using H2 F1 F2 E COUPONS f1l f1r f2l f2r el er
+    using H2 F1 F2 E COUPONS f1l f1r f2l f2r el er is_equal_match
     by (simp, metis option.distinct(1) option.sel)+
 
   ultimately show ?thesis
@@ -376,9 +377,9 @@ proof -
 
   obtain thunk where SAME: "c1r = c2l" 
                         and THUNK: "create_application_thunk_api c1l = Some thunk"
-    using H2 COUPONS C1 C2 c1l c1r c2l c2r
+    using H2 COUPONS C1 C2 c1l c1r c2l c2r is_equal_match
     apply (simp, meson option.distinct(1))
-    by (metis (lifting) create_application_thunk_api_match
+    by (metis (lifting)
         option.distinct(1) option.exhaust_sel option.simps(4))
 
   then obtain c1lt where "c1l = HTreeObj c1lt"
@@ -393,11 +394,11 @@ proof -
 
   ultimately have "coupon_think thunk c2r"
     using CouponThinkApplication
-    C1C C2C SAME THUNK
+    C1C C2C SAME THUNK create_application_thunk_api_match
     by (simp, blast)
 
   moreover have "c = create_coupon Think thunk c2r"
-    using H2 C1 C2 C1C C2C COUPONS c1l c1r c2l c2r THUNK SAME
+    using H2 C1 C2 C1C C2C COUPONS c1l c1r c2l c2r THUNK SAME create_application_thunk_api_match is_equal_match
     by (simp, metis option.distinct(1) option.inject)
 
   ultimately show ?thesis
@@ -557,7 +558,7 @@ proof -
         get_type.simps(3,4) old.nat.distinct(1))
 
   ultimately show ?thesis
-    using coupon_good_def step1 CouponEvalBlobObj
+    using coupon_good_def step1 CouponEvalBlobObj is_equal_match
     by (simp, blast)
 qed
 
@@ -590,14 +591,14 @@ proof -
     by (metis H2 make_eval_tree_coupon.simps option.distinct(1))+
 
   then obtain tl tr where "l = HTreeObj tl" and "r = HTreeObj tr"
-    using HTreeObj_def
+    using HTreeObj_def get_tree_size_api_match
     apply (cases l; cases r; simp_all)
     by (metis Data.simps(5,6) Object.simps(5) lower_data.cases
         option.distinct(1))
 
   then have "(\<forall>i. (i < length coupons \<longrightarrow>
          (get_tree_data tl i = the (get_coupon_lhs (coupons ! i))) \<and> get_tree_data tr i = the (get_coupon_rhs (coupons ! i))))"
-    using H H2 Sizel Sizer get_tree_size_def get_tree_data_def
+    using H H2 Sizel Sizer get_tree_size_def get_tree_data_def get_tree_size_api_match get_tree_data_api_match
     by (simp, metis (no_types, lifting) is_equal_match
         option.case_eq_if option.discI)
 
@@ -605,7 +606,7 @@ proof -
          (coupon_eval (get_tree_data tl i) (get_tree_data tr i))))"
     by (metis H H1 good_eval list_all_length)
   then have "coupon_eval (HTreeObj tl) (HTreeObj tr)"
-    using CouponEvalTreeObj get_tree_data_def get_tree_size_def Sizel Sizer
+    using CouponEvalTreeObj get_tree_data_def get_tree_size_def Sizel Sizer get_tree_size_api_match get_tree_data_api_match
     by (simp add: \<open>l = HTreeObj tl\<close> \<open>r = HTreeObj tr\<close>
         list_all2_all_nthI)
 
@@ -664,26 +665,26 @@ proof -
     using assms(2) step1 step2 el er
     by (simp, metis option.distinct(1))
   then have step4: "c = create_coupon Eq l r"
-    using assms(2) step1 step2 el er el' 
+    using assms(2) step1 step2 el er el' is_equal_match
     by (simp, force)
 
   have "coupon_force el er"
     using step2 assms(2) step1 el er
     using assms(1) good_force by fastforce
   moreover have "lift er = er"
-    using step3 
+    using step3 is_equal_match
     apply (cases er; simp_all)
     apply (case_tac x1; simp_all)
     apply force
     by (case_tac x2; simp_all)
   ultimately have "coupon_eq el' er"
-    using el' create_strict_encode_api_match CouponForcetoEncodeStrict
+    using el' create_strict_encode_api_match CouponForcetoEncodeStrict is_equal_match
     apply simp
     apply (cases el; simp_all)
     by fastforce
 
   then show ?thesis
-    using coupon_good_def step4 step3
+    using coupon_good_def step4 step3 is_equal_match
     by simp
 qed
 
@@ -733,11 +734,11 @@ proof -
   have "coupon_eval c1l c1r"
     using step2 step1 coupon_good_def assms(1) c1l c1r good_eval by force
   moreover have "coupon_eq c1l c2r"
-    using step2 step1 coupon_good_def assms(1) c2l c2r good_eq step3 by force
+    using step2 step1 coupon_good_def assms(1) c2l c2r good_eq step3 is_equal_match by force
   ultimately have "coupon_eval c2r c1r"
     using CouponEvalEq by blast
   then show ?thesis 
-    using step1 step4 step3 coupon_good_def
+    using step1 step4 step3 coupon_good_def is_equal_match
     by auto
 qed
 
@@ -781,7 +782,7 @@ proof -
         option.exhaust)
 
   then have step3: "l = el' \<and> r = er'" and step4: "c = create_coupon Eq l r"
-    using assms(2) step1 step2 el er
+    using assms(2) step1 step2 el er is_equal_match
     apply simp_all
     apply (metis option.distinct(1))
     by (metis option.distinct(1) option.sel)
@@ -838,7 +839,7 @@ proof -
         option.exhaust)
 
   then have step3: "l = el' \<and> r = er'" and step4: "c = create_coupon Eq l r"
-    using assms(2) step1 step2 el er
+    using assms(2) step1 step2 el er is_equal_match
     apply simp_all
     apply (metis option.distinct(1))
     by (metis option.distinct(1) option.sel)
@@ -885,11 +886,11 @@ proof -
     by blast
 
   then have step3: "er = l \<and> el = r"
-    using assms(2) step1 step2
+    using assms(2) step1 step2 is_equal_match
     by (simp, metis option.distinct(1))
 
   then have step4: "c = create_coupon Eq l r"
-    using assms(2) step1 step2 el er
+    using assms(2) step1 step2 el er is_equal_match
     by simp
 
   have "coupon_eq el er" 
@@ -955,7 +956,7 @@ proof -
     by (metis CouponTrans is_equal_match
         step3)
   then show ?thesis
-    using step3 coupon_good_def step4
+    using step3 coupon_good_def step4 is_equal_match
     by simp
 qed
 
@@ -980,7 +981,7 @@ proof -
     by simp
 
   moreover have "coupon_eq l r"
-    using CouponSelf \<open>is_equal l r\<close>
+    using CouponSelf \<open>is_equal l r\<close> is_equal_match
     by fastforce
   ultimately show ?thesis
     using coupon_good_def

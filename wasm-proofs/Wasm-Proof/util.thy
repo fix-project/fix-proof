@@ -1,6 +1,41 @@
 theory util
-  imports Main WebAssembly_Dev.Wasm_Base_Defs WebAssembly_Dev.Wasm_Interpreter
+  imports Init Main WebAssembly_Dev.Wasm_Base_Defs WebAssembly_Dev.Wasm_Interpreter
 begin
+
+lemma se:
+  "\<not> int_eq (I32.int_of_nat (Suc 0)) 0"
+  by (simp add: I32.int_of_nat_def int_eq_i32_def Wasm_Ast.i32.Rep_i32_inject zero_i32_def I32.int_eq_def Wasm_Ast.i32.Abs_i32_inject)
+
+lemma st:
+  "\<not> int_eq (I32.lift0 1) 0"
+  by (simp add: I32.int_eq_def I32.rep_0 I32.rep_abs
+      int_eq_i32.rep_eq)
+
+lemma sf:
+  "int_eq (I32.int_of_nat 0) 0"
+  by (simp add: I32.int_eq_def I32.int_of_nat_def int_eq_i32.abs_eq zero_i32_def)
+
+lemma sff:
+  "int_eq (I32.lift0 0) 0"
+  by (simp add: I32.int_eq_def I32.rep_0 I32.rep_abs
+      int_eq_i32.rep_eq)
+
+definition fuel50 :: "nat \<Rightarrow> nat" where [simp]:
+"fuel50 n =
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))))))))))))))))))))))))))))))))))))))"
+
+lemma fifty_is_fifty:
+"n + 50 =
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc
+  (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))))))))))))))))))))))))))))))))))))))))))"
+  by auto
 
 lemma list_length_2:
   assumes "\<not> length xs < 2"
@@ -90,5 +125,32 @@ lemma neq_32:
   assumes "j < 2^(LENGTH(i32) - 1)"
   shows "Rep_i32 (I32.lift0 (word_of_nat i)) \<noteq> Rep_i32 (I32.lift0 (word_of_nat j))"
   by (metis I32.rep_abs assms(1,2,3) int_of_nat_i32.abs_eq nat_of_int_rev)
+
+definition exp_inst :: "inst" where [simp]: 
+"exp_inst = \<lparr>types = [([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_num T_i32)]),
+([(T_ref T_ext_ref)] _> [(T_num T_i32)]),
+([(T_ref T_ext_ref)] _> [(T_ref T_ext_ref)]),
+([(T_ref T_ext_ref), (T_num T_i32)] _> [(T_ref T_ext_ref)]),
+([(T_num T_i32), (T_ref T_ext_ref), (T_ref T_ext_ref)] _> [(T_ref T_ext_ref)])],
+funcs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34],
+tabs = [0, 1],
+mems = [],
+globs = [],
+elems = [0],
+datas = []
+\<rparr>"
+
+lemma split_n_0: 
+"split_n (rest_vs) 0 = ([], rest_vs)"
+  by (simp add: split_n_conv_take_drop)
+
+lemma split_n_1: 
+"split_n (h1 # rest_vs) (Suc 0) = ([h1], rest_vs)"
+  by (simp add: split_n_conv_take_drop)
+
+lemma split_n_2: 
+"split_n (h1 # h2 # rest_vs) (Suc (Suc 0)) = ([h1, h2], rest_vs)"
+  by (simp add: split_n_conv_take_drop)
 
 end

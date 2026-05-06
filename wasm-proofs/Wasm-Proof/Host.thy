@@ -1,5 +1,5 @@
 theory Host
-  imports WebAssembly_Dev.Wasm_Ast WebAssembly_Dev.Wasm_Interpreter WebAssembly_Dev.Wasm_Base_Defs coupon
+  imports WebAssembly_Dev.Wasm_Ast WebAssembly_Dev.Wasm_Interpreter WebAssembly_Dev.Wasm_Base_Defs isabelle_coupon
 begin
 
 (* Establish translation between externref and handles *)
@@ -27,13 +27,23 @@ consts fixpoint_is_equal :: host_func
 consts fixpoint_is_storage_coupon :: host_func
 consts fixpoint_is_force_coupon :: host_func
 consts fixpoint_is_eq_coupon :: host_func
-consts fixpoint_create_thunk :: host_func
-consts fixpoint_create_encode :: host_func
+consts fixpoint_is_eval_coupon :: host_func
+consts fixpoint_is_apply_coupon :: host_func
+consts fixpoint_is_think_coupon :: host_func
+consts fixpoint_create_application_thunk :: host_func
+consts fixpoint_create_strict_encode :: host_func
+consts fixpoint_create_shallow_encode :: host_func
 consts fixpoint_get_coupon_lhs :: host_func
 consts fixpoint_get_coupon_rhs :: host_func
 consts fixpoint_create_eq_coupon :: host_func
+consts fixpoint_create_eval_coupon :: host_func
+consts fixpoint_create_think_coupon :: host_func
+consts fixpoint_create_force_coupon :: host_func
 consts fixpoint_get_tree_size :: host_func
 consts fixpoint_get_tree_data :: host_func
+consts fixpoint_is_blob_obj :: host_func
+consts fixpoint_is_data :: host_func
+consts fixpoint_is_object :: host_func
 
 axiomatization where
   (* We are stating here that the exposed fixpoint_is_equal is the same as
@@ -46,27 +56,47 @@ and
   fixpoint_is_storage_coupon_impl:
   "host_func_apply_impl s type_r_i32 fixpoint_is_storage_coupon
   [(V_ref (ConstRefExtern r))] 
-  = Some (s, [V_num (ConstInt32 (wasm_bool (is_storage_coupon_api (to_handle r))))])"
+  = Some (s, [V_num (ConstInt32 (wasm_bool (is_storage_coupon (to_handle r))))])"
 and
   fixpoint_is_force_coupon_impl:
   "host_func_apply_impl s type_r_i32 fixpoint_is_force_coupon
   [(V_ref (ConstRefExtern r))] 
-  = Some (s, [V_num (ConstInt32 (wasm_bool (is_force_coupon_api (to_handle r))))])"
+  = Some (s, [V_num (ConstInt32 (wasm_bool (is_force_coupon (to_handle r))))])"
 and
   fixpoint_is_eq_coupon_impl:
   "host_func_apply_impl s type_r_i32 fixpoint_is_eq_coupon
   [(V_ref (ConstRefExtern r))] 
-  = Some (s, [V_num (ConstInt32 (wasm_bool (is_eq_coupon_api (to_handle r))))])"
+  = Some (s, [V_num (ConstInt32 (wasm_bool (is_eq_coupon (to_handle r))))])"
 and
-  fixpoint_create_thunk_impl:
-  "host_func_apply_impl s type_r_r fixpoint_create_thunk
+  fixpoint_is_eval_coupon_impl:
+  "host_func_apply_impl s type_r_i32 fixpoint_is_eval_coupon
   [(V_ref (ConstRefExtern r))] 
-  = map_option (\<lambda>h. (s, [V_ref (ConstRefExtern (to_externref h))])) (create_thunk_api (to_handle r))"
+  = Some (s, [V_num (ConstInt32 (wasm_bool (is_eval_coupon (to_handle r))))])"
 and
-  fixpoint_create_encode_impl:
-  "host_func_apply_impl s type_r_r fixpoint_create_encode
+  fixpoint_is_apply_coupon_impl:
+  "host_func_apply_impl s type_r_i32 fixpoint_is_apply_coupon
   [(V_ref (ConstRefExtern r))] 
-  = map_option (\<lambda>h. (s, [V_ref (ConstRefExtern (to_externref h))])) (create_encode_api (to_handle r))"
+  = Some (s, [V_num (ConstInt32 (wasm_bool (is_apply_coupon (to_handle r))))])"
+and
+  fixpoint_is_think_coupon_impl:
+  "host_func_apply_impl s type_r_i32 fixpoint_is_think_coupon
+  [(V_ref (ConstRefExtern r))] 
+  = Some (s, [V_num (ConstInt32 (wasm_bool (is_think_coupon (to_handle r))))])"
+and
+  fixpoint_create_application_thunk_impl:
+  "host_func_apply_impl s type_r_r fixpoint_create_application_thunk
+  [(V_ref (ConstRefExtern r))] 
+  = map_option (\<lambda>h. (s, [V_ref (ConstRefExtern (to_externref h))])) (create_application_thunk_api (to_handle r))"
+and
+  fixpoint_create_strict_encode_impl:
+  "host_func_apply_impl s type_r_r fixpoint_create_strict_encode
+  [(V_ref (ConstRefExtern r))] 
+  = map_option (\<lambda>h. (s, [V_ref (ConstRefExtern (to_externref h))])) (create_strict_encode_api (to_handle r))"
+and
+  fixpoint_create_shallow_encode_impl:
+  "host_func_apply_impl s type_r_r fixpoint_create_shallow_encode
+  [(V_ref (ConstRefExtern r))] 
+  = map_option (\<lambda>h. (s, [V_ref (ConstRefExtern (to_externref h))])) (create_shallow_encode_api (to_handle r))"
 and
   fixpoint_get_coupon_lhs_impl:
   "host_func_apply_impl s type_r_r fixpoint_get_coupon_lhs 
@@ -81,7 +111,22 @@ and
   fixpoint_create_eq_coupon_impl:
   "host_func_apply_impl s type_rr_r fixpoint_create_eq_coupon
   [(V_ref (ConstRefExtern r1)), (V_ref (ConstRefExtern r2))] 
-  = Some (s, [V_ref (ConstRefExtern (to_externref (create_eq_coupon (to_handle r1) (to_handle r2))))])"
+  = Some (s, [V_ref (ConstRefExtern (to_externref (create_coupon Eq (to_handle r1) (to_handle r2))))])"
+and
+  fixpoint_create_eval_coupon_impl:
+  "host_func_apply_impl s type_rr_r fixpoint_create_eval_coupon
+  [(V_ref (ConstRefExtern r1)), (V_ref (ConstRefExtern r2))] 
+  = Some (s, [V_ref (ConstRefExtern (to_externref (create_coupon Eval (to_handle r1) (to_handle r2))))])"
+and
+  fixpoint_create_think_coupon_impl:
+  "host_func_apply_impl s type_rr_r fixpoint_create_think_coupon
+  [(V_ref (ConstRefExtern r1)), (V_ref (ConstRefExtern r2))] 
+  = Some (s, [V_ref (ConstRefExtern (to_externref (create_coupon Think (to_handle r1) (to_handle r2))))])"
+and
+  fixpoint_create_force_coupon_impl:
+  "host_func_apply_impl s type_rr_r fixpoint_create_force_coupon
+  [(V_ref (ConstRefExtern r1)), (V_ref (ConstRefExtern r2))] 
+  = Some (s, [V_ref (ConstRefExtern (to_externref (create_coupon Force (to_handle r1) (to_handle r2))))])"
 and
   fixpoint_get_tree_size_impl:
   "host_func_apply_impl s type_r_i32 fixpoint_get_tree_size
@@ -92,6 +137,21 @@ and
   "host_func_apply_impl s type_ri32_r fixpoint_get_tree_data
   [(V_ref (ConstRefExtern r)), (V_num (ConstInt32 n))]
   = map_option (\<lambda>h. (s, [V_ref (ConstRefExtern (to_externref h))])) (get_tree_data_api (to_handle r) (I32.nat_of_int n))"
+and
+  fixpoint_is_blob_obj_impl:
+  "host_func_apply_impl s type_r_i32 fixpoint_is_blob_obj
+  [(V_ref (ConstRefExtern r))] 
+  = Some (s, [V_num (ConstInt32 (wasm_bool (get_type (to_handle r) = 0)))])"
+and
+  fixpoint_is_object_impl:
+  "host_func_apply_impl s type_r_i32 fixpoint_is_object
+  [(V_ref (ConstRefExtern r))] 
+  = Some (s, [V_num (ConstInt32 (wasm_bool (get_type (to_handle r) = 0 \<or> get_type (to_handle r) = 1)))])"
+and
+  fixpoint_is_data_impl:
+  "host_func_apply_impl s type_r_i32 fixpoint_is_data
+  [(V_ref (ConstRefExtern r))] 
+  = Some (s, [V_num (ConstInt32 (wasm_bool (get_type (to_handle r) = 0 \<or> get_type (to_handle r) = 1 \<or> get_type (to_handle r) = 2 \<or> get_type (to_handle r) = 3)))])"
 
 
 (* Helper lemmas for simplifying bool_to_i32 from the axiom statement *)
@@ -106,14 +166,14 @@ lemma fixpoint_is_equal_correct_externref_neq:
   by (simp only: fixpoint_is_equal_impl, cases "is_equal (to_handle r1) (to_handle r2)") (auto simp add: I32.int_of_nat_def wasm_bool.abs_eq i32.Abs_i32_inject)
 
 lemma fixpoint_is_storage_coupon_externref:
-  "is_storage_coupon_api (to_handle r) \<longleftrightarrow> host_func_apply_impl s type_r_i32
+  "is_storage_coupon (to_handle r) \<longleftrightarrow> host_func_apply_impl s type_r_i32
    fixpoint_is_storage_coupon
    [(V_ref (ConstRefExtern r))] = Some(s, [V_num (ConstInt32 (I32.int_of_nat 1))])"
-  by (simp only: fixpoint_is_storage_coupon_impl, cases "is_storage_coupon_api (to_handle r)") (auto simp add: I32.int_of_nat_def wasm_bool.abs_eq i32.Abs_i32_inject)
+  by (simp only: fixpoint_is_storage_coupon_impl, cases "is_storage_coupon (to_handle r)") (auto simp add: I32.int_of_nat_def wasm_bool.abs_eq i32.Abs_i32_inject)
 
 lemma fixpoint_is_storage_coupon_externref_neq:
-  "\<not>is_storage_coupon_api (to_handle r) \<longleftrightarrow> host_func_apply_impl s type_r_i32
+  "\<not>is_storage_coupon (to_handle r) \<longleftrightarrow> host_func_apply_impl s type_r_i32
    fixpoint_is_storage_coupon
    [(V_ref (ConstRefExtern r))] = Some(s, [V_num (ConstInt32 (I32.int_of_nat 0))])"
-  by (simp only: fixpoint_is_storage_coupon_impl, cases "is_storage_coupon_api (to_handle r)") (auto simp add: I32.int_of_nat_def wasm_bool.abs_eq i32.Abs_i32_inject)
+  by (simp only: fixpoint_is_storage_coupon_impl, cases "is_storage_coupon (to_handle r)") (auto simp add: I32.int_of_nat_def wasm_bool.abs_eq i32.Abs_i32_inject)
 end

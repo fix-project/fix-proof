@@ -1,41 +1,41 @@
-theory thunktree_coupon
+theory eq_application_coupon
   imports custom_method isabelle_coupon
 begin
 
 lemma make_some:
-  assumes "make_thunktree_coupon_raw coupons l r = Some res"
+  assumes "make_eq_application_coupon coupons l r = Some res"
   shows "(\<exists>e xs l' r' l'' r''.
           coupons = e # xs
-        \<and> is_eq_coupon_api e
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs e = Some l'
         \<and> get_coupon_rhs e = Some r'
-        \<and> create_thunk_api l' = Some l''
-        \<and> create_thunk_api r' = Some r''
+        \<and> create_application_thunk_api l' = Some l''
+        \<and> create_application_thunk_api r' = Some r''
         \<and> is_equal l l''
         \<and> is_equal r r''
-        \<and> res = create_eq_coupon l r)"
+        \<and> res = create_coupon Eq l r)"
 proof -
   obtain e xs where
        1: "coupons = e # xs
-         \<and> is_eq_coupon_api e"
-    by (metis assms  make_thunktree_coupon_raw.elims option.simps(3))
+         \<and> is_eq_coupon e"
+    by (metis assms make_eq_application_coupon.elims option.distinct(1))
   then obtain l' r' where
        2: "get_coupon_lhs e = Some l'"
    and 3: "get_coupon_rhs e = Some r'"
-    by (metis is_eq_coupon_api_def is_coupon_lhs is_coupon_rhs)
+    using eq_lhs_exist eq_rhs_exist by presburger
 
-  have "make_thunktree_coupon_raw coupons l r =
-    (case (create_thunk_api l', create_thunk_api r') of
+  have "make_eq_application_coupon coupons l r =
+    (case (create_application_thunk_api l', create_application_thunk_api r') of
            (Some l'', Some r'') \<Rightarrow> 
-           (if (is_equal l l'' \<and> is_equal r r'') then Some(create_eq_coupon l r) else None)
+           (if (is_equal l l'' \<and> is_equal r r'') then Some(create_coupon Eq l r) else None)
           | _ \<Rightarrow> None)"
     by (simp add: 1 2 3)
   then obtain l'' r'' where
-       4: "create_thunk_api l' = Some l''"
-   and 5: "create_thunk_api r' = Some r''"
+       4: "create_application_thunk_api l' = Some l''"
+   and 5: "create_application_thunk_api r' = Some r''"
     by (metis (no_types, lifting) assms case_prod_conv option.exhaust option.simps(4,5))
-  then have "make_thunktree_coupon_raw coupons l r = 
-           (if (is_equal l l'' \<and> is_equal r r'') then Some(create_eq_coupon l r) else None)"
+  then have "make_eq_application_coupon coupons l r = 
+           (if (is_equal l l'' \<and> is_equal r r'') then Some(create_coupon Eq l r) else None)"
     by (simp add: 1 2 3 4 5)
 
   then show ?thesis
@@ -45,38 +45,38 @@ qed
 lemma make_some_rev: 
   assumes "(\<exists>e xs l' r' l'' r''.
           coupons = e # xs
-        \<and> is_eq_coupon_api e
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs e = Some l'
         \<and> get_coupon_rhs e = Some r'
-        \<and> create_thunk_api l' = Some l''
-        \<and> create_thunk_api r' = Some r''
+        \<and> create_application_thunk_api l' = Some l''
+        \<and> create_application_thunk_api r' = Some r''
         \<and> is_equal l l''
         \<and> is_equal r r'')"
-  shows "make_thunktree_coupon_raw coupons l r = Some (create_eq_coupon l r)"
+  shows "make_eq_application_coupon coupons l r = Some (create_coupon Eq l r)"
   using assms by fastforce
 
 lemma make_none:
-  assumes "make_thunktree_coupon_raw coupons l r = None"
+  assumes "make_eq_application_coupon coupons l r = None"
   shows "(coupons = [] \<or>
-         (\<exists>e xs. coupons = e # xs \<and> \<not>is_eq_coupon_api e) \<or>
+         (\<exists>e xs. coupons = e # xs \<and> \<not>is_eq_coupon e) \<or>
          (\<exists>e xs l' r'. coupons = e # xs
-                     \<and> is_eq_coupon_api e
+                     \<and> is_eq_coupon e
                      \<and> get_coupon_lhs e = Some l'
                      \<and> get_coupon_rhs e = Some r'
-                     \<and> create_thunk_api l' = None) \<or>
+                     \<and> create_application_thunk_api l' = None) \<or>
          (\<exists>e xs l' r' l''. coupons = e # xs
-                     \<and> is_eq_coupon_api e
+                     \<and> is_eq_coupon e
                      \<and> get_coupon_lhs e = Some l'
                      \<and> get_coupon_rhs e = Some r'
-                     \<and> create_thunk_api l' = l'' 
-                     \<and> create_thunk_api r' = None) \<or>
+                     \<and> create_application_thunk_api l' = l'' 
+                     \<and> create_application_thunk_api r' = None) \<or>
          (\<exists>e xs l' r' l'' r''.
                    coupons = e # xs
-                 \<and> is_eq_coupon_api e
+                 \<and> is_eq_coupon e
                  \<and> get_coupon_lhs e = Some l'
                  \<and> get_coupon_rhs e = Some r'
-                 \<and> create_thunk_api l' = Some l''
-                 \<and> create_thunk_api r' = Some r''
+                 \<and> create_application_thunk_api l' = Some l''
+                 \<and> create_application_thunk_api r' = Some r''
                  \<and> (\<not>is_equal l l'' \<or> \<not>is_equal r r'')))"
 proof (cases "coupons = []")
   case True then show ?thesis by auto
@@ -85,12 +85,12 @@ next
   then obtain e xs where 1: "coupons = e # xs" using list.exhaust_sel by blast
 
   then show ?thesis
-  proof (cases "\<not>is_eq_coupon_api e")
+  proof (cases "\<not>is_eq_coupon e")
     case True then show ?thesis using 1 by auto
   next
     case False
     then obtain l' r' where 2: "get_coupon_lhs e = Some l' \<and> get_coupon_rhs e = Some r'"
-      by (metis is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def)
+      using eq_lhs_exist eq_rhs_exist by blast
 
     show ?thesis
       by (metis "1" "2" assms make_some_rev not_Some_eq)
@@ -102,8 +102,8 @@ lemma plus_37:
 (Suc (Suc (Suc (Suc (Suc (Suc (Suc(Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n)))))))))))))))))))))))))))))))))))))"
   by auto
 
-lemma make_thunktree_coupon_raw_run_iter:
-  assumes "make_thunktree_coupon_raw coupons l r = Some res"
+lemma make_eq_application_coupon_run_iter:
+  assumes "make_eq_application_coupon coupons l r = Some res"
   shows  "run_iter (n + 37)
           (Config 
            (Suc n')
@@ -112,7 +112,7 @@ lemma make_thunktree_coupon_raw_run_iter:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_thunktree_coupon_idx]
+                     [Invoke func_make_eq_application_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
  =
@@ -120,18 +120,18 @@ lemma make_thunktree_coupon_raw_run_iter:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref res)) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   obtain e xs l' r' l'' r'' where
           1: "coupons = e # xs
-        \<and> is_eq_coupon_api e
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs e = Some l'
         \<and> get_coupon_rhs e = Some r'
-        \<and> create_thunk_api l' = Some l''
-        \<and> create_thunk_api r' = Some r''
+        \<and> create_application_thunk_api l' = Some l''
+        \<and> create_application_thunk_api r' = Some r''
         \<and> is_equal l l''
         \<and> is_equal r r''
-        \<and> res = create_eq_coupon l r"
+        \<and> res = create_coupon Eq l r"
     using make_some[OF assms] by auto
 
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
@@ -143,9 +143,9 @@ proof -
     fixpoint_get_coupon_rhs_impl[of ?state]
     fixpoint_is_equal_impl[of ?state]
     fixpoint_create_eq_coupon_impl[of ?state]
-    fixpoint_create_thunk_impl[of ?state]
+    fixpoint_create_application_thunk_impl[of ?state]
 
-    apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_thunktree_coupon_idx_def)
+    apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_application_coupon_idx_def)
     apply (table_get_local_set)
     apply (call_api_func)
     apply (if_block)
@@ -157,8 +157,8 @@ proof -
     done
 qed
 
-lemma make_thunktree_coupon_raw_run_invoke_none:
-  assumes "make_thunktree_coupon_raw coupons l r = None"
+lemma make_eq_application_coupon_run_invoke_none:
+  assumes "make_eq_application_coupon coupons l r = None"
   shows "\<exists>msg cfg.
           run_iter (n + 37)
           (Config 
@@ -168,31 +168,31 @@ lemma make_thunktree_coupon_raw_run_invoke_none:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_thunktree_coupon_idx]
+                     [Invoke func_make_eq_application_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
         = (cfg, RTrap msg)"
 proof -
   let ?A = "coupons = []"
-  let ?B = "(\<exists>e xs. coupons = e # xs \<and> \<not>is_eq_coupon_api e)" 
+  let ?B = "(\<exists>e xs. coupons = e # xs \<and> \<not>is_eq_coupon e)" 
   let ?C = "(\<exists>e xs l' r'. coupons = e # xs
-                     \<and> is_eq_coupon_api e
+                     \<and> is_eq_coupon e
                      \<and> get_coupon_lhs e = Some l'
                      \<and> get_coupon_rhs e = Some r'
-                     \<and> create_thunk_api l' = None)"
+                     \<and> create_application_thunk_api l' = None)"
   let ?D = "(\<exists>e xs l' r' l''. coupons = e # xs
-                     \<and> is_eq_coupon_api e
+                     \<and> is_eq_coupon e
                      \<and> get_coupon_lhs e = Some l'
                      \<and> get_coupon_rhs e = Some r'
-                     \<and> create_thunk_api l' = Some l''
-                     \<and> create_thunk_api r' = None)"
+                     \<and> create_application_thunk_api l' = Some l''
+                     \<and> create_application_thunk_api r' = None)"
   let ?E = "(\<exists>e xs l' r' l'' r''.
                    coupons = e # xs
-                 \<and> is_eq_coupon_api e
+                 \<and> is_eq_coupon e
                  \<and> get_coupon_lhs e = Some l'
                  \<and> get_coupon_rhs e = Some r'
-                 \<and> create_thunk_api l' = Some l''
-                 \<and> create_thunk_api r' = Some r''
+                 \<and> create_application_thunk_api l' = Some l''
+                 \<and> create_application_thunk_api r' = Some r''
                  \<and> (\<not>is_equal l l'' \<or> \<not>is_equal r r''))"
 
   have assms: "?A \<or> ?B \<or> ?C \<or> ?D \<or> ?E" using make_none[OF assms] by auto
@@ -204,16 +204,16 @@ proof -
   proof
     assume ?A
     then show ?thesis
-      by (invoke_coupon_func fuel_idx_def: plus_37 func_make_thunktree_coupon_idx_def, table_get_local_set)
+      by (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_application_coupon_idx_def, table_get_local_set)
   next
     assume "?B \<or> ?C \<or> ?D \<or> ?E"
     then show ?thesis
     proof
       assume ?B
-      then obtain e xs where "coupons = e # xs \<and> (\<not>is_eq_coupon_api e)" by auto
+      then obtain e xs where "coupons = e # xs \<and> (\<not>is_eq_coupon e)" by auto
       then show ?thesis
         using fixpoint_is_eq_coupon_impl[of ?state]
-        by (invoke_coupon_func fuel_idx_def: plus_37 func_make_thunktree_coupon_idx_def, table_get_local_set, call_api_func, if_block)
+        by (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_application_coupon_idx_def, table_get_local_set, call_api_func, if_block)
     next
       assume "?C \<or> ?D \<or> ?E"
       then show ?thesis
@@ -221,18 +221,18 @@ proof -
         assume ?C
         then obtain e xs l' r' where
           "coupons = e # xs
-          \<and> is_eq_coupon_api e
+          \<and> is_eq_coupon e
           \<and> get_coupon_lhs e = Some l'
           \<and> get_coupon_rhs e = Some r'
-          \<and> create_thunk_api l' = None"
+          \<and> create_application_thunk_api l' = None"
           by auto
 
         then show ?thesis
           using fixpoint_is_eq_coupon_impl[of ?state]
                 fixpoint_get_coupon_lhs_impl[of ?state]
                 fixpoint_get_coupon_rhs_impl[of ?state]
-                fixpoint_create_thunk_impl[of ?state]
-          by (invoke_coupon_func fuel_idx_def: plus_37 func_make_thunktree_coupon_idx_def, table_get_local_set, call_api_func, if_block, call_api_func)
+                fixpoint_create_application_thunk_impl[of ?state]
+          by (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_application_coupon_idx_def, table_get_local_set, call_api_func, if_block, call_api_func)
       next
         assume "?D \<or> ?E"
         then show ?thesis
@@ -240,20 +240,20 @@ proof -
           assume ?D
           then obtain e xs l' r' l'' where
             "coupons = e # xs
-            \<and> is_eq_coupon_api e
+            \<and> is_eq_coupon e
             \<and> get_coupon_lhs e = Some l'
             \<and> get_coupon_rhs e = Some r'
-            \<and> create_thunk_api l' = Some l''
-            \<and> create_thunk_api r' = None"
+            \<and> create_application_thunk_api l' = Some l''
+            \<and> create_application_thunk_api r' = None"
             by auto
 
           then show ?thesis
             using fixpoint_is_eq_coupon_impl[of ?state]
                   fixpoint_get_coupon_lhs_impl[of ?state]
                   fixpoint_get_coupon_rhs_impl[of ?state]
-                  fixpoint_create_thunk_impl[of ?state]
+                  fixpoint_create_application_thunk_impl[of ?state]
                   fixpoint_is_equal_impl[of ?state]
-            apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_thunktree_coupon_idx_def)
+            apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_application_coupon_idx_def)
             apply (table_get_local_set)
             apply (call_api_func)
             apply (if_block)
@@ -265,11 +265,11 @@ proof -
           assume ?E
           then obtain e xs l' r' l'' r'' where
                    "coupons = e # xs
-                 \<and> is_eq_coupon_api e
+                 \<and> is_eq_coupon e
                  \<and> get_coupon_lhs e = Some l'
                  \<and> get_coupon_rhs e = Some r'
-                 \<and> create_thunk_api l' = Some l''
-                 \<and> create_thunk_api r' = Some r''
+                 \<and> create_application_thunk_api l' = Some l''
+                 \<and> create_application_thunk_api r' = Some r''
                  \<and> (\<not>is_equal l l'' \<or> \<not>is_equal r r'')"
             by auto
 
@@ -277,9 +277,9 @@ proof -
             using fixpoint_is_eq_coupon_impl[of ?state]
                   fixpoint_get_coupon_lhs_impl[of ?state]
                   fixpoint_get_coupon_rhs_impl[of ?state]
-                  fixpoint_create_thunk_impl[of ?state]
+                  fixpoint_create_application_thunk_impl[of ?state]
                   fixpoint_is_equal_impl[of ?state]
-            apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_thunktree_coupon_idx_def)
+            apply (invoke_coupon_func fuel_idx_def: plus_37 func_make_eq_application_coupon_idx_def)
             apply (table_get_local_set)
             apply (call_api_func)
             apply (if_block)

@@ -1,4 +1,4 @@
-theory tree_coupon
+theory eq_tree_coupon
   imports custom_method isabelle_coupon
 begin
 
@@ -6,8 +6,8 @@ axiomatization where
   tree_size_i32: "(\<exists>s. get_tree_size_api l = Some s) \<longrightarrow> (\<exists>s. get_tree_size_api l = Some s \<and> s < 2^(LENGTH(i32) - 1))"
 
 lemma make_some:
-  assumes "make_tree_coupon_raw coupons l r = Some res"
-  shows "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i))) \<and>
+  assumes "make_eq_tree_coupon coupons l r = Some res"
+  shows "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i))) \<and>
          get_tree_size_api l = Some (length coupons) \<and>
          get_tree_size_api r = Some (length coupons) \<and>
          (\<forall>i. (i < length coupons \<longrightarrow>
@@ -18,32 +18,32 @@ lemma make_some:
             get_coupon_rhs (coupons ! i) = Some cr \<and>
             is_equal li cl \<and>
             is_equal ri cr))) \<and>
-         res = create_eq_coupon l r"
+         res = create_coupon Eq l r"
 proof -
-  have 1: "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i)))"
-    by (metis assms make_tree_coupon_raw.simps option.distinct(1))
+  have 1: "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i)))"
+    by (metis assms make_eq_tree_coupon.simps option.distinct(1))
   then have 5: "(\<forall>i. (i < length coupons \<longrightarrow> 
         (\<exists>cl cr. get_coupon_lhs (coupons ! i) = Some cl 
                \<and> get_coupon_rhs (coupons ! i) = Some cr)))"
-    by (metis is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def)
+    using eq_lhs_exist eq_rhs_exist by presburger
 
   have 2: "get_tree_size_api l = Some (length coupons)"
-    by (metis assms make_tree_coupon_raw.simps option.distinct(1))
+    by (metis assms make_eq_tree_coupon.simps option.distinct(1))
   then have 6: "\<forall>i < length coupons. \<exists>li. get_tree_data_api l i = Some li"
-    using get_tree_size_def get_tree_data_def
-    by (cases l) auto
+    using get_tree_size_def get_tree_data_def get_tree_size_api_match get_tree_data_api_match
+    by (cases l; simp_all; case_tac x1; simp_all; case_tac x1a; simp_all)
 
   have 3: "get_tree_size_api r = Some (length coupons)"
-    by (metis assms make_tree_coupon_raw.simps option.distinct(1))
+    by (metis assms make_eq_tree_coupon.simps option.distinct(1))
   then have 7: "\<forall>i < length coupons. \<exists>ri. get_tree_data_api r i = Some ri"
-    using get_tree_size_def get_tree_data_def
-    by (cases r) auto
+    using get_tree_size_def get_tree_data_def get_tree_size_api_match get_tree_data_api_match
+    by (cases r; simp_all; case_tac x1; simp_all; case_tac x1a; simp_all)
 
   have 4: "(\<forall>i. (i < length coupons \<longrightarrow>
          (case (get_tree_data_api l i, get_tree_data_api r i, get_coupon_lhs (coupons ! i), get_coupon_rhs (coupons ! i)) of
              (Some li, Some ri, Some cl, Some cr) \<Rightarrow> (is_equal li cl \<and> is_equal ri cr)
            | _ \<Rightarrow> False)))"
-    by (metis (no_types, lifting) assms make_tree_coupon_raw.simps option.distinct(1))
+    by (metis (no_types, lifting) assms make_eq_tree_coupon.simps option.distinct(1))
 
   have 5: "(\<forall>i. (i < length coupons \<longrightarrow>
            (\<exists>li ri cl cr.
@@ -86,11 +86,11 @@ proof -
 
   show ?thesis
     using 1 2 3 5
-    by (metis (no_types, lifting) assms make_tree_coupon_raw.simps option.discI option.sel)
+    by (metis (no_types, lifting) assms make_eq_tree_coupon.simps option.discI option.sel)
 qed
 
 lemma make_some_rev:
-  assumes "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i))) \<and>
+  assumes "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i))) \<and>
          get_tree_size_api l = Some (length coupons) \<and>
          get_tree_size_api r = Some (length coupons) \<and>
          (\<forall>i. (i < length coupons \<longrightarrow>
@@ -101,14 +101,14 @@ lemma make_some_rev:
             get_coupon_rhs (coupons ! i) = Some cr \<and>
             is_equal li cl \<and>
             is_equal ri cr)))"
-  shows "make_tree_coupon_raw coupons l r = Some (create_eq_coupon l r)"
+  shows "make_eq_tree_coupon coupons l r = Some (create_coupon Eq l r)"
   using assms by fastforce
 
 lemma make_none:
-  assumes "make_tree_coupon_raw coupons l r = None"
-  shows "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon_api (coupons ! i) 
-                \<and> (\<forall>j < i. is_eq_coupon_api (coupons ! j))) \<or>
-         ((\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i))) \<and>
+  assumes "make_eq_tree_coupon coupons l r = None"
+  shows "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon (coupons ! i) 
+                \<and> (\<forall>j < i. is_eq_coupon (coupons ! j))) \<or>
+         ((\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i))) \<and>
           ((get_tree_size_api l = None \<or> 
             get_tree_size_api r = None \<or> 
             (\<exists>l'. get_tree_size_api l = Some l' \<and> l' \<noteq> length coupons) \<or>
@@ -131,16 +131,16 @@ lemma make_none:
                 is_equal li cl \<and>
                 is_equal ri cr))))
 ))"
-proof (cases "\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i))")
+proof (cases "\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i))")
   case False 
-  then have H: "\<exists>i. (i < length coupons \<and> \<not>is_eq_coupon_api (coupons ! i))" by auto
-  have "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon_api (coupons ! i) 
-                \<and> (\<forall>j < i. is_eq_coupon_api (coupons ! j)))"
+  then have H: "\<exists>i. (i < length coupons \<and> \<not>is_eq_coupon (coupons ! i))" by auto
+  have "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon (coupons ! i) 
+                \<and> (\<forall>j < i. is_eq_coupon (coupons ! j)))"
   proof -
-    let ?P = "\<lambda>i. i < length coupons \<and> \<not> is_eq_coupon_api (coupons ! i)"
+    let ?P = "\<lambda>i. i < length coupons \<and> \<not> is_eq_coupon (coupons ! i)"
     let ?i = "LEAST i. ?P i"
     have "?P ?i" using H by (rule LeastI_ex)
-    moreover have "\<forall>j<?i. is_eq_coupon_api (coupons ! j)"
+    moreover have "\<forall>j<?i. is_eq_coupon (coupons ! j)"
       using not_less_Least
       using calculation order_less_trans by blast
     ultimately show ?thesis by blast
@@ -148,11 +148,11 @@ proof (cases "\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api
   then show ?thesis by auto
 next
   case True
-  then have T1: "\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i))" .
+  then have T1: "\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i))" .
   then have 1: "(\<forall>i. (i < length coupons \<longrightarrow> 
         (\<exists>cl cr. get_coupon_lhs (coupons ! i) = Some cl 
                \<and> get_coupon_rhs (coupons ! i) = Some cr)))"
-    by (metis is_coupon_lhs is_coupon_rhs is_eq_coupon_api_def)
+    using eq_lhs_exist eq_rhs_exist by presburger
 
   show ?thesis
   proof (cases "get_tree_size_api l = Some (length coupons) \<and> get_tree_size_api r = Some (length coupons)")
@@ -161,11 +161,13 @@ next
     case True
     then have T2: "get_tree_size_api l = Some (length coupons)" by simp
     then have 2: "\<forall>i < length coupons. \<exists>li. get_tree_data_api l i = Some li"
-      using get_tree_size_def get_tree_data_def by (cases l) auto
+      using get_tree_size_def get_tree_data_def get_tree_size_api_match get_tree_data_api_match
+      by (cases l; simp_all; case_tac x1; simp_all; case_tac x1a; simp_all)
 
     have T3: "get_tree_size_api r = Some (length coupons)" using True by simp
     then have 3: "\<forall>i < length coupons. \<exists>ri. get_tree_data_api r i = Some ri"
-      using get_tree_size_def get_tree_data_def by (cases r) auto
+      using get_tree_size_def get_tree_data_def get_tree_size_api_match get_tree_data_api_match      
+      by (cases r; simp_all; case_tac x1; simp_all; case_tac x1a; simp_all)
 
     have "\<not>(\<forall>i. (i < length coupons \<longrightarrow>
            (\<exists>li ri cl cr.
@@ -314,7 +316,7 @@ lemma add_one_is_add_one:
 
 lemma first_loop_internal_good:
   assumes H1: "i < length coupons"
-  assumes H2: "is_eq_coupon_api (coupons ! i)"
+  assumes H2: "is_eq_coupon (coupons ! i)"
   assumes H3: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "run_iter (n + 17) 
      (Config n'
@@ -370,7 +372,7 @@ qed
 
 lemma first_loop_internal_bad:
   assumes H1: "i < length coupons"
-  assumes H2: "\<not> is_eq_coupon_api (coupons ! i)"
+  assumes H2: "\<not> is_eq_coupon (coupons ! i)"
   assumes H3: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "\<exists>cfg msg. run_iter (n + 17) 
      (Config n'
@@ -407,7 +409,7 @@ proof -
 qed
 
 lemma first_loop_good_multiple:
-  assumes H1: "\<forall>i. i < x \<longrightarrow> is_eq_coupon_api (coupons ! i)"
+  assumes H1: "\<forall>i. i < x \<longrightarrow> is_eq_coupon (coupons ! i)"
   assumes H2: "x \<le> length coupons"
   assumes H3: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "\<And>n. run_iter (n + 17 * x) 
@@ -449,7 +451,7 @@ proof (induction x arbitrary: n)
     using 0 by auto
 next
   case (Suc y)
-  then have 1: "y < length coupons" and 2: "is_eq_coupon_api  (coupons ! y)" 
+  then have 1: "y < length coupons" and 2: "is_eq_coupon  (coupons ! y)" 
     by auto
   have "n + 17 + 17 * y = n + 17 * (Suc y)" by auto 
   then show ?case using  
@@ -459,7 +461,7 @@ next
 qed
 
 lemma first_loop_good:
-  assumes H1: "\<forall>i. i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i)"
+  assumes H1: "\<forall>i. i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i)"
   assumes H2: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "run_iter (n + 6 + 17 * (length coupons)) 
      (Config n'
@@ -501,8 +503,8 @@ proof -
 qed
 
 lemma first_loop_bad:
-  assumes H1: "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon_api (coupons ! i) 
-                \<and> (\<forall>j < i. is_eq_coupon_api (coupons ! j)))"
+  assumes H1: "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon (coupons ! i) 
+                \<and> (\<forall>j < i. is_eq_coupon (coupons ! j)))"
   assumes H2: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "\<exists>cfg msg. run_iter (n + 6 + 17 * (length coupons)) 
      (Config n'
@@ -522,8 +524,8 @@ lemma first_loop_bad:
       fcs ) = (cfg, RTrap msg)"
 proof -
   obtain i where 1: "i < length coupons" 
-             and 2: "\<not>is_eq_coupon_api (coupons ! i)"
-             and 3: "(\<forall>j < i. is_eq_coupon_api (coupons ! j))"
+             and 2: "\<not>is_eq_coupon (coupons ! i)"
+             and 3: "(\<forall>j < i. is_eq_coupon (coupons ! j))"
     using H1 by auto
 
   have 4: "i \<le> length coupons" using 1 by auto
@@ -553,16 +555,16 @@ definition second_loop where
 (Local_set 2),
 (Local_get 0),
 (Local_get 4),
-(Call 10),
+(Call 17),
 (Local_get 2),
-(Call 6),
+(Call 10),
 (Call 0),
 (If (Tbv None)
 [(Local_get 1),
 (Local_get 4),
-(Call 10),
+(Call 17),
 (Local_get 2),
-(Call 7),
+(Call 11),
 (Call 0),
 (If (Tbv None)
 [Nop]
@@ -685,13 +687,13 @@ proof -
 
   show ?thesis
     using fixpoint_get_tree_data_impl[of ?state]
-          ge_than_32[OF H1 H3]
+          ge_than_32[OF H1 H3]     
           fixpoint_get_coupon_lhs_impl[of ?state]
           fixpoint_get_coupon_rhs_impl[of ?state]
           fixpoint_is_equal_impl[of ?state]
           nat_of_int_rev_trans[OF H1 H3]
           nat_of_int_rev_trans_32[OF H1 H3]
-          H1 1 add_one_is_add_one
+          H1 1 add_one_is_add_one get_tree_data_def get_tree_size_def
     apply (simp add: init_def tab_coupons_idx_def tb_tf_def plus_30 app_f_v_s_local_get_def app_v_s_relop_def app_relop_def app_relop_i_v_def app_relop_i_def app_v_s_br_if_def second_loop_def)
     apply (if_block, table_get_local_set, call_api_func)
     apply (if_block)
@@ -1003,10 +1005,10 @@ proof -
 qed
 
 definition first_be where
-"first_be = [Local_get 0, Call 9, Local_get 3,
+"first_be = [Local_get 0, Call 16, Local_get 3,
             Relop T_i32 (Relop_i relop_i.Eq),
             b_e.If (Tbv (Some (T_ref T_ext_ref)))
-             [Local_get (Suc 0), Call 9, Local_get 3,
+             [Local_get (Suc 0), Call 16, Local_get 3,
               Relop T_i32 (Relop_i relop_i.Eq),
               b_e.If (Tbv (Some (T_ref T_ext_ref)))
                [EConstNum (ConstInt32 (I32.lift0 0)), Local_set 4,
@@ -1014,15 +1016,15 @@ definition first_be where
                  [Loop (Tbv None)
                    [Local_get 4, Local_get 3, Relop T_i32 (Relop_i (Ge S)),
                     Br_if (Suc 0), Local_get 4, Table_get 0, Local_set 2,
-                    Local_get 0, Local_get 4, Call 10, Local_get 2, Call 6,
+                    Local_get 0, Local_get 4, Call 17, Local_get 2, Call 10,
                     Call 0,
                     b_e.If (Tbv None)
-                     [Local_get (Suc 0), Local_get 4, Call 10, Local_get 2,
-                      Call 7, Call 0, b_e.If (Tbv None) [Nop] [Unreachable]]
+                     [Local_get (Suc 0), Local_get 4, Call 17, Local_get 2,
+                      Call 11, Call 0, b_e.If (Tbv None) [Nop] [Unreachable]]
                      [Unreachable],
                     Local_get 4, EConstNum (ConstInt32 (I32.lift0 1)),
                     Binop T_i32 (Binop_i Add), Local_set 4, Br 0]],
-                Local_get 0, Local_get (Suc 0), Call 8]
+                Local_get 0, Local_get (Suc 0), Call 12]
                [Unreachable]]
              [Unreachable]]"
 
@@ -1035,7 +1037,7 @@ lemma E1: "run_iter
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_tree_coupon_idx]
+                     [Invoke func_make_eq_tree_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs) =
         run_iter
@@ -1056,7 +1058,7 @@ lemma E1: "run_iter
             (Frame_context (Redex rest_vs [] b_es) lc f 
                 \<lparr>f_locs = locs, f_inst = exp_inst \<rparr> # fcs))"
     apply (simp)
-    apply (invoke_coupon_func fuel_idx_def: func_make_tree_coupon_idx_def)
+    apply (invoke_coupon_func fuel_idx_def: func_make_eq_tree_coupon_idx_def)
 
     apply (rule_tac t="5" and s="Suc 4" in subst, simp)
     apply (subst add_Suc_right, subst run_iter.simps)
@@ -1074,7 +1076,7 @@ lemma E1: "run_iter
     done
 
 definition second_be where
-"second_be = [Local_get 0, Local_get (Suc 0), Call 8]"
+"second_be = [Local_get 0, Local_get (Suc 0), Call 12]"
 
 lemma E3: 
   assumes H1: "get_tree_size_api l = Some (length coupons)"
@@ -1326,7 +1328,7 @@ lemma E6:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_coupon Eq l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
  using fixpoint_create_eq_coupon_impl
     apply (simp add: second_be_def)
     apply (rule_tac t="8" and s="Suc 7" in subst, simp)
@@ -1357,7 +1359,7 @@ lemma E6:
     done
 
 lemma make_tree_coupon_raw_run_iter:
-  assumes H1: "make_tree_coupon_raw coupons l r = Some res"
+  assumes H1: "make_eq_tree_coupon coupons l r = Some res"
   assumes H2: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "run_iter 
           (n + 6 + 37 * (length coupons) + 6 + 17 * (length coupons) + 29)
@@ -1368,7 +1370,7 @@ lemma make_tree_coupon_raw_run_iter:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_tree_coupon_idx]
+                     [Invoke func_make_eq_tree_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
  =
@@ -1376,14 +1378,14 @@ lemma make_tree_coupon_raw_run_iter:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref res)) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
 
   have add_Suc_left: "\<And>m1 m2. Suc m1 + m2 = Suc (m1 + m2)"
     by simp
 
-  have 1: "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i)))" 
+  have 1: "(\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i)))" 
    and 2: "get_tree_size_api l = Some (length coupons)"
    and 3: "get_tree_size_api r = Some (length coupons)" 
    and 4: "(\<forall>i. (i < length coupons \<longrightarrow>
@@ -1394,7 +1396,7 @@ proof -
             get_coupon_rhs (coupons ! i) = Some cr \<and>
             is_equal li cl \<and>
             is_equal ri cr)))"
-   and 5: "res = create_eq_coupon l r" using make_some[OF H1] by (blast+)
+   and 5: "res = create_coupon Eq l r" using make_some[OF H1] by (blast+)
 
   let ?newfcs = "(Frame_context (Redex rest_vs [] b_es) lc f 
                 \<lparr>f_locs = locs, f_inst = exp_inst \<rparr> # fcs)"
@@ -1408,7 +1410,7 @@ proof -
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_tree_coupon_idx]
+                     [Invoke func_make_eq_tree_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs) =
         run_iter
@@ -1495,7 +1497,7 @@ proof -
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_tree_coupon_idx]
+                     [Invoke func_make_eq_tree_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs) = 
 run_iter (8 + n)
@@ -1521,16 +1523,16 @@ run_iter (8 + n)
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_coupon Eq l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
     using E6
     by (rule_tac t="8 + n" and s="n + 8" in subst, simp)
 
-  then show ?thesis using E5 E6
+  then show ?thesis using E5 E6 5
     by presburger
 qed
 
 lemma make_tree_coupon_raw_run_invoke_none:
-  assumes H1: "make_tree_coupon_raw coupons l r = None"
+  assumes H1: "make_eq_tree_coupon coupons l r = None"
   assumes H2: "length coupons < 2^(LENGTH(i32) - 1)"
   shows "\<exists>cfg msg. run_iter 
           (n + 6 + 37 * (length coupons) + 6 + 17 * (length coupons) + 29)
@@ -1541,14 +1543,14 @@ lemma make_tree_coupon_raw_run_invoke_none:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_tree_coupon_idx]
+                     [Invoke func_make_eq_tree_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
  = (cfg, RTrap msg)"
 proof -
-  have H1: "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon_api (coupons ! i) 
-                \<and> (\<forall>j < i. is_eq_coupon_api (coupons ! j))) \<or>
-         ((\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon_api (coupons ! i))) \<and>
+  have H1: "(\<exists>i. i < length coupons \<and> \<not>is_eq_coupon (coupons ! i) 
+                \<and> (\<forall>j < i. is_eq_coupon (coupons ! j))) \<or>
+         ((\<forall>i. (i < length coupons \<longrightarrow> is_eq_coupon (coupons ! i))) \<and>
           ((get_tree_size_api l = None \<or> 
             get_tree_size_api r = None \<or> 
             (\<exists>l'. get_tree_size_api l = Some l' \<and> l' \<noteq> length coupons) \<or>
@@ -1588,7 +1590,7 @@ proof -
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_tree_coupon_idx]
+                     [Invoke func_make_eq_tree_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs) =
         run_iter
@@ -1610,8 +1612,8 @@ proof -
 
   from H1 show ?thesis
   proof
-    assume assm: "\<exists>i<length coupons. \<not> is_eq_coupon_api (coupons ! i) \<and>
-       (\<forall>j<i. is_eq_coupon_api (coupons ! j))"
+    assume assm: "\<exists>i<length coupons. \<not> is_eq_coupon (coupons ! i) \<and>
+       (\<forall>j<i. is_eq_coupon (coupons ! j))"
 
     have "\<exists>cfg msg. run_iter
           (36 + (54 * (length coupons) + n))
@@ -1633,7 +1635,7 @@ proof -
 
     then show ?thesis using E1 by presburger
   next
-    assume assm: "(\<forall>i<length coupons. is_eq_coupon_api (coupons ! i)) \<and>
+    assume assm: "(\<forall>i<length coupons. is_eq_coupon (coupons ! i)) \<and>
     ((get_tree_size_api l = None \<or>
       get_tree_size_api r = None \<or>
       (\<exists>l'. get_tree_size_api l = Some l' \<and> l' \<noteq> length coupons) \<or>
@@ -1653,7 +1655,7 @@ proof -
                    get_coupon_lhs (coupons ! j) = Some cl \<and>
                    get_coupon_rhs (coupons ! j) = Some cr \<and>
                    is_equal li cl \<and> is_equal ri cr)))"
-    then have 1: "(\<forall>i<length coupons. is_eq_coupon_api (coupons ! i))"
+    then have 1: "(\<forall>i<length coupons. is_eq_coupon (coupons ! i))"
           and 2: " ((get_tree_size_api l = None \<or>
       get_tree_size_api r = None \<or>
       (\<exists>l'. get_tree_size_api l = Some l' \<and> l' \<noteq> length coupons) \<or>
@@ -1814,5 +1816,3 @@ proof -
 qed
 
 end
-              
-

@@ -1,28 +1,36 @@
 theory make_coupon
-  imports self_coupon storage_coupon tree_coupon thunk_coupon thunktree_coupon thunkforce_coupon encode_coupon sym_coupon trans_coupon
+  imports self_coupon sym_coupon trans_coupon eq_application_coupon eq_encode_strict_coupon eq_tree_coupon eval_blobobj_coupon eval_tree_coupon force_result_eq_coupon force_to_encode_strict_coupon think_application_coupon think_to_force_coupon eval_eq_coupon
 begin
 
 fun request_to_nat :: "request \<Rightarrow> nat" where
-  "request_to_nat Storage = 0"
-| "request_to_nat Tree = 1"
-| "request_to_nat Thunk = 2"
-| "request_to_nat ThunkTree = 3"
-| "request_to_nat ThunkForce = 4"
-| "request_to_nat Encode = 5"
-| "request_to_nat Sym = 6"
-| "request_to_nat Trans = 7"
-| "request_to_nat Self = 8"
+  "request_to_nat TreeEq = 0"
+| "request_to_nat EqApplication = 1"
+| "request_to_nat ForceResultEq = 2"
+| "request_to_nat EqEncodeStrict = 3"
+| "request_to_nat ThinkApplication = 4"
+| "request_to_nat ThinkToForce = 5"
+| "request_to_nat ForceToEncodeStrict = 6"
+| "request_to_nat EvalEq = 7"
+| "request_to_nat EvalBlobObj = 8"
+| "request_to_nat EvalTreeObj = 9"
+| "request_to_nat Sym = 10"
+| "request_to_nat Trans = 11"
+| "request_to_nat Self = 12"
 
 fun request_to_func_idx :: "request \<Rightarrow> nat" where
-  "request_to_func_idx Storage = func_make_storage_coupon_idx"
-| "request_to_func_idx Tree = func_make_tree_coupon_idx"
-| "request_to_func_idx Thunk = func_make_thunk_coupon_idx"
-| "request_to_func_idx ThunkTree = func_make_thunktree_coupon_idx"
-| "request_to_func_idx ThunkForce = func_make_thunkforce_coupon_idx"
-| "request_to_func_idx Encode = func_make_encode_coupon_idx"
-| "request_to_func_idx Self = func_make_self_coupon_idx"
+  "request_to_func_idx TreeEq = func_make_eq_tree_coupon_idx"
+| "request_to_func_idx EqApplication = func_make_eq_application_coupon_idx"
+| "request_to_func_idx ForceResultEq = func_make_force_result_eq_coupon_idx"
+| "request_to_func_idx EqEncodeStrict = func_make_eq_encode_strict_coupon_idx"
+| "request_to_func_idx ThinkApplication = func_make_think_application_coupon_idx"
+| "request_to_func_idx ThinkToForce = func_make_think_to_force_coupon_idx"
+| "request_to_func_idx ForceToEncodeStrict = func_make_force_to_encode_strict_coupon_idx"
+| "request_to_func_idx EvalEq = func_make_eval_eq_coupon_idx"
+| "request_to_func_idx EvalBlobObj = func_make_eval_blobobj_coupon_idx"
+| "request_to_func_idx EvalTreeObj = func_make_eval_tree_coupon_idx"
 | "request_to_func_idx Sym = func_make_sym_coupon_idx"
 | "request_to_func_idx Trans = func_make_trans_coupon_idx"
+| "request_to_func_idx Self = func_make_self_coupon_idx"
 
 lemma make_coupon_prologue:
   "run_invoke_v 
@@ -54,29 +62,33 @@ proof -
   have 1: "n + 10 = (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n))))))))))" by auto
   show ?thesis
     by (cases "request", simp_all add: I32.int_of_nat_def init_def tab_coupons_idx_def func_make_coupon_idx_def n_zeros_def app_f_v_s_local_get_def app_s_f_v_s_table_size_def stab_ind_def app_v_s_relop_def app_relop_def app_relop_i_def app_relop_i_v_def int_lt_u_i32_def I32.int_lt_u_def int_of_nat_i32.rep_eq I32.rep_abs app_v_s_if_def wasm_bool_def zero_i32_def int_eq_i32.abs_eq I32.int_eq_def tb_tf_def app_s_f_v_s_call_indirect_def tab_cl_ind_def nat_of_int_i32.abs_eq stypes_def cl_type_def 
-    func_make_storage_coupon_idx_def
-    func_make_tree_coupon_idx_def 
-    func_make_thunk_coupon_idx_def
-    func_make_thunktree_coupon_idx_def
-    func_make_thunkforce_coupon_idx_def
-    func_make_encode_coupon_idx_def
+    func_make_eq_tree_coupon_idx_def
+    func_make_eq_application_coupon_idx_def
+    func_make_force_result_eq_coupon_idx_def
+    func_make_eq_encode_strict_coupon_idx_def
+    func_make_think_application_coupon_idx_def
+    func_make_think_to_force_coupon_idx_def
+    func_make_force_to_encode_strict_coupon_idx_def
+    func_make_eval_eq_coupon_idx_def
+    func_make_eval_blobobj_coupon_idx_def
+    func_make_eval_tree_coupon_idx_def
     func_make_sym_coupon_idx_def
     func_make_trans_coupon_idx_def
-    func_make_self_coupon_idx_def 
+    func_make_self_coupon_idx_def
     1)
 qed
 
 lemma make_coupon_epilog:
 "run_iter (n + 4)
     (Config depth s
-      (Frame_context (Redex [V_ref (ConstRefExtern (to_externref (create_eq_coupon l r)))] [] [])  
+      (Frame_context (Redex [V_ref (ConstRefExtern (to_externref res))] [] [])  
       [Label_context [] [] (Suc 0) [], Label_context [] [] (Suc 0) []] 
       (Suc 0) f)
     [Frame_context (Redex [] [] []) [] 0 empty_frame]) 
   = 
     ((Config (Suc depth) s
-    (Frame_context (Redex [V_ref (ConstRefExtern (to_externref (create_eq_coupon l r)))] [] []) [] 0 empty_frame) [])
-    , RValue [V_ref (ConstRefExtern (to_externref (create_eq_coupon l r)))])"
+    (Frame_context (Redex [V_ref (ConstRefExtern (to_externref res))] [] []) [] 0 empty_frame) [])
+    , RValue [V_ref (ConstRefExtern (to_externref res))])"
 proof -
   have 1: "4 = (Suc (Suc (Suc (Suc 0))))" by auto
   show ?thesis by (simp add: Let_def 1)
@@ -93,53 +105,87 @@ lemma make_coupon_some:
           (V_ref (ConstRefExtern (to_externref l))),
           (V_ref (ConstRefExtern (to_externref r)))],
          func_make_coupon_idx)
-         = (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>, RValue [V_ref (ConstRefExtern (to_externref (create_eq_coupon l r)))])"
+         = (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>, RValue [V_ref (ConstRefExtern (to_externref res))])"
 proof (cases "request")
-  case Storage
+  case TreeEq
   show ?thesis
-    using make_coupon_prologue[of 37 1 coupons "Storage"]
-          make_storage_coupon_raw_run_iter[of coupons l r res 4 0 "[]"] assms
-          make_coupon_epilog[of 0 1] Storage
-    by (intro exI[where x=47]  exI[where x = "Suc (Suc 0)"]) auto
-next
-  case Tree
-  show ?thesis
-    using make_coupon_prologue[of "45 + 54 * (length coupons)" 1 coupons "Tree"]
+    using make_coupon_prologue[of "45 + 54 * (length coupons)" 1 coupons "TreeEq"]
           make_tree_coupon_raw_run_iter[of coupons l r res 4 0 "[]"] 
           assms
-          make_coupon_epilog[of 0 1] Tree
+          make_coupon_epilog[of 0 1] TreeEq
     by (intro exI[of _ "55 + 54 * (length coupons)"] exI[of _ "Suc (Suc 0)"]) auto
 next
-  case Thunk
+  case EvalTreeObj
   show ?thesis
-    using make_coupon_prologue[of 75 1 coupons "Thunk"]
-          make_thunk_coupon_raw_run_iter[of coupons l r res 4 0 "[]"]
+    using make_coupon_prologue[of "45 + 54 * (length coupons)" 1 coupons "EvalTreeObj"]
+          make_eval_tree_coupon_run_iter[of coupons l r res 4 0 "[]"] 
           assms
-          make_coupon_epilog[of 0 1] Thunk
-    by (intro exI[where x=85] exI[where x = "Suc (Suc 0)"]) auto
+          make_coupon_epilog[of 0 1] EvalTreeObj
+    by (intro exI[of _ "55 + 54 * (length coupons)"] exI[of _ "Suc (Suc 0)"]) auto
 next
-  case ThunkTree
+  case ForceResultEq
   show ?thesis
-    using make_coupon_prologue[of 41 1 coupons "ThunkTree"]
-          make_thunktree_coupon_raw_run_iter[of coupons l r res 4 0 "[]"] assms
-          make_coupon_epilog[of 0 1] ThunkTree
-    by (intro exI[of _ 51] exI[of _ "Suc (Suc 0)"]) auto
-next
-  case ThunkForce
-  show ?thesis
-    using make_coupon_prologue[of 75 1 coupons "ThunkForce"]
-          make_thunkforce_coupon_raw_run_iter[of coupons l r res 4 0 "[]"] 
+    using make_coupon_prologue[of 75 1 coupons "ForceResultEq"]
+          make_force_result_eq_coupon_run_iter[of coupons l r res 4 0 "[]"] 
           assms
-          make_coupon_epilog[of 0 1] ThunkForce
+          make_coupon_epilog[of 0 1] ForceResultEq
     by (intro exI[of _ 85] exI[of _ "Suc (Suc 0)"]) auto
 next
-  case Encode
+  case ThinkApplication
   show ?thesis
-    using make_coupon_prologue[of 41 1 coupons "Encode"]
-          make_encode_coupon_raw_run_iter[of coupons l r res 4 0 "[]"]
+    using make_coupon_prologue[of 58 1 coupons "ThinkApplication"]
+          make_think_application_coupon_run_iter[of coupons l r res 4 0 "[]"] 
           assms
-          make_coupon_epilog[of 0 1] Encode
-    by (intro exI[of _ 51] exI[of _ "Suc (Suc 0)"]) auto
+          make_coupon_epilog[of 0 1] ThinkApplication
+    by (intro exI[of _ 68] exI[of _ "Suc 1"]) auto
+next
+  case ThinkToForce
+  show ?thesis
+    using make_coupon_prologue[of 45 1 coupons "ThinkToForce"]
+          make_think_to_force_coupon_run_iter[of coupons l r res 4 0 "[]"] 
+          assms
+          make_coupon_epilog[of 0 1] ThinkToForce
+    by (intro exI[of _ 55] exI[of _ "Suc 1"]) auto
+next
+  case EqApplication
+  show ?thesis
+    using make_coupon_prologue[of 41 1 coupons "EqApplication"]
+          make_eq_application_coupon_run_iter[of coupons l r res 4 0 "[]"] 
+          assms
+          make_coupon_epilog[of 0 1] EqApplication
+    by (intro exI[of _ 51] exI[of _ "Suc 1"]) auto
+next
+  case EvalBlobObj
+  show ?thesis
+    using make_coupon_prologue[of 24 1 coupons "EvalBlobObj"]
+          make_eval_blob_coupon_run_iter[of coupons l r res 4 0 "[]"] 
+          assms
+          make_coupon_epilog[of 0 1] EvalBlobObj
+    by (intro exI[of _ 34] exI[of _ "Suc 1"]) auto
+next
+  case ForceToEncodeStrict
+  show ?thesis
+    using make_coupon_prologue[of 47 1 coupons "ForceToEncodeStrict"]
+          make_force_to_encode_strict_coupon_run_iter[of coupons l r res 4 0 "[]"] 
+          assms
+          make_coupon_epilog[of 0 1] ForceToEncodeStrict
+    by (intro exI[of _ 57] exI[of _ "Suc 1"]) auto
+next
+  case EvalEq
+  show ?thesis
+    using make_coupon_prologue[of 56 1 coupons "EvalEq"]
+          make_eval_eq_coupon_run_iter[of coupons l r res 4 0 "[]"] 
+          assms
+          make_coupon_epilog[of 0 1] EvalEq
+    by (intro exI[of _ 66] exI[of _ "Suc 1"]) auto
+next
+  case EqEncodeStrict
+  show ?thesis
+    using make_coupon_prologue[of 41 1 coupons "EqEncodeStrict"]
+          make_eq_encode_strict_coupon_run_iter[of coupons l r res 4 0 "[]"] 
+          assms
+          make_coupon_epilog[of 0 1] EqEncodeStrict
+    by (intro exI[of _ 51] exI[of _ "Suc 1"]) auto
 next
   case Self
   show ?thesis
@@ -151,7 +197,7 @@ next
   case Sym
   show ?thesis
     using make_coupon_prologue[of 37 1 coupons "Sym"]
-          make_sym_coupon_raw_run_iter[of coupons l r res 4 0 "[]"]
+          make_sym_coupon_run_iter[of coupons l r res 4 0 "[]"]
           assms
           make_coupon_epilog[of 0 1] Sym
     by (intro exI[where x=47] exI[where x = "Suc (Suc 0)"]) auto
@@ -159,7 +205,7 @@ next
   case Trans
   show ?thesis
     using make_coupon_prologue[of 56 1 coupons "Trans"]
-          make_trans_coupon_raw_run_iter[of coupons l r res 4 0 "[]"]
+          make_trans_coupon_run_iter[of coupons l r res 4 0 "[]"]
           assms
           make_coupon_epilog[of 0 1] Trans
     by (intro exI[of _ 66] exI[of _ "Suc (Suc 0)"]) auto
@@ -199,66 +245,83 @@ proof -
             [Frame_context (Redex [] [] []) [] 0 empty_frame])
         = (cfg, RTrap msg)"
   proof (cases "request")
-    case Storage
-    show ?thesis
-      using make_storage_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] assms
-            Storage
-      by force
-  next
-    case Tree
+    case TreeEq
     show ?thesis
       using make_tree_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
             assms
-            Tree
+            TreeEq
       by force
   next
-    case Thunk
-    show ?thesis
-      using make_thunk_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
-            assms
-            Thunk
+    case ForceResultEq
+    then show ?thesis
+      using make_force_result_eq_coupon_run_invoke_none[of coupons l r 4 0 "[]"] 
+            assms 
       by force
   next
-    case ThunkTree
-    show ?thesis
-      using make_thunktree_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
+    case ThinkApplication
+    then show ?thesis
+      using make_think_application_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
             assms
-            ThunkTree
       by force
   next
-    case ThunkForce
-    show ?thesis
-      using make_thunkforce_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
+    case ThinkToForce
+    then show ?thesis
+      using make_think_to_force_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
             assms
-            ThunkForce
       by force
   next
-    case Encode
-    show ?thesis
-      using make_encode_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
+    case EqApplication
+    then show ?thesis
+      using make_eq_application_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
             assms
-            Encode
       by force
   next
-    case Self
-    show ?thesis
-      using make_self_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
+    case EvalBlobObj
+    then show ?thesis
+      using make_eval_blobobj_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
             assms
-            Self
+      by force
+  next
+    case EvalTreeObj
+    then show ?thesis
+      using make_eval_tree_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
+            assms
+      by force
+  next
+    case ForceToEncodeStrict
+    then show ?thesis
+      using make_force_to_encode_strict_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
+            assms
+      by force
+  next
+    case EvalEq
+    then show ?thesis
+      using make_eval_eq_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
+            assms
+      by force
+  next
+    case EqEncodeStrict
+    then show ?thesis
+      using make_eq_encode_strict_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
+            assms
       by force
   next
     case Sym
-    show ?thesis
-      using make_sym_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
+    then show ?thesis
+      using make_sym_coupon_run_invoke_none[of coupons l r 4 0 "[]"]
             assms
-            Sym
       by force
   next
     case Trans
-    show ?thesis
-      using make_trans_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"] 
+    then show ?thesis
+      using make_trans_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"]
             assms
-            Trans
+      by force
+  next
+    case Self
+    then show ?thesis
+      using make_self_coupon_raw_run_invoke_none[of coupons l r 4 0 "[]"]
+            assms
       by force
   qed
 

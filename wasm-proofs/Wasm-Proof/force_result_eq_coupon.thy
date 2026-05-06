@@ -1,14 +1,14 @@
-theory thunk_coupon
+theory force_result_eq_coupon
   imports custom_method isabelle_coupon
 begin
 
 lemma mt_some:
-  assumes "make_thunk_coupon_raw coupons l r = Some res"
+  assumes "make_force_result_eq_coupon coupons l r = Some res"
   shows "(\<exists>f1 f2 e xs f1l f1r f2l f2r el er.
           coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
@@ -19,35 +19,42 @@ lemma mt_some:
         \<and> is_equal f2r er
         \<and> is_equal f1l l
         \<and> is_equal f2l r
-        \<and> res = (create_eq_coupon l r))"
+        \<and> res = (create_coupon Eq l r))"
 proof -
-  obtain f1 f2 e xs f1l f1r f2l f2r el er where
+  obtain f1 f2 e xs where
           1: "coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
-        \<and> get_coupon_lhs f1 = Some f1l
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e"
+    using assms
+    apply (cases coupons; simp_all; case_tac list; simp_all; case_tac lista; simp_all)
+    by (meson option.distinct(1))
+
+
+  then obtain f1l f1r f2l f2r el er where 2: "get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
         \<and> get_coupon_rhs f2 = Some f2r
         \<and> get_coupon_lhs e = Some el
         \<and> get_coupon_rhs e = Some er"
-  by (metis assms is_coupon_lhs is_coupon_rhs is_force_coupon_api_def is_eq_coupon_api_def make_thunk_coupon_raw.elims option.simps(3))
+    using eq_lhs_exist eq_rhs_exist force_lhs_exist force_rhs_exist
+    by presburger
 
-  then have "make_thunk_coupon_raw coupons l r
-   = (if (is_equal f1r el \<and> is_equal f2r er \<and> is_equal f1l l \<and> is_equal f2l r) then Some (create_eq_coupon l r) else None)"
+  then have "make_force_result_eq_coupon coupons l r
+   = (if (is_equal f1r el \<and> is_equal f2r er \<and> is_equal f1l l \<and> is_equal f2l r) then Some (create_coupon Eq l r) else None)"
+    using 1
     by (auto)
 
   then show ?thesis
-    by (metis (no_types, lifting) 1 assms handy_if_lemma)
+    by (metis (no_types, lifting) 1 2 assms handy_if_lemma)
 qed
 
 lemma mt_some_rev:
   assumes "(\<exists>f1 f2 e xs f1l f1r f2l f2r el er.
           coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
@@ -58,19 +65,19 @@ lemma mt_some_rev:
         \<and> is_equal f2r er
         \<and> is_equal f1l l
         \<and> is_equal f2l r)"
-  shows "make_thunk_coupon_raw coupons l r = Some (create_eq_coupon l r)"
+  shows "make_force_result_eq_coupon coupons l r = Some (create_coupon Eq l r)"
   using assms by fastforce
 
 lemma mt_none:
-  assumes "make_thunk_coupon_raw coupons l r = None"
+  assumes "make_force_result_eq_coupon coupons l r = None"
   shows "(length coupons < 3) \<or>
          (\<exists>f1 f2 e xs. coupons = f1 # f2 # e # xs \<and>
-          (\<not>is_force_coupon_api f1 \<or> \<not>is_force_coupon_api f2 \<or> \<not> is_eq_coupon_api e)) \<or>
+          (\<not>is_force_coupon f1 \<or> \<not>is_force_coupon f2 \<or> \<not> is_eq_coupon e)) \<or>
          (\<exists>f1 f2 e xs f1l f1r f2l f2r el er.
           coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
@@ -86,11 +93,11 @@ next
     using list_length_3 by blast
 
   then show ?thesis
-  proof (cases "\<not>(is_force_coupon_api f1 \<and> is_force_coupon_api f2 \<and> is_eq_coupon_api e)")
+  proof (cases "\<not>(is_force_coupon f1 \<and> is_force_coupon f2 \<and> is_eq_coupon e)")
     case True then show ?thesis using 1 by blast
   next
     case False
-    then have "is_force_coupon_api f1 \<and> is_force_coupon_api f2 \<and> is_eq_coupon_api e" by auto
+    then have "is_force_coupon f1 \<and> is_force_coupon f2 \<and> is_eq_coupon e" by auto
 
     then obtain f1l f1r f2l f2r el er where
           "get_coupon_lhs f1 = Some f1l
@@ -99,7 +106,8 @@ next
         \<and> get_coupon_rhs f2 = Some f2r
         \<and> get_coupon_lhs e = Some el
         \<and> get_coupon_rhs e = Some er"
-      by (metis is_coupon_lhs is_coupon_rhs is_force_coupon_api_def is_eq_coupon_api_def)
+      using eq_lhs_exist eq_rhs_exist force_lhs_exist force_rhs_exist
+      by presburger
 
     then show ?thesis
       using "1" assms by auto
@@ -111,8 +119,8 @@ lemma plus_71:
 (Suc (Suc (Suc (Suc (Suc (Suc (Suc(Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc n)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
   by auto
 
-lemma make_thunk_coupon_raw_run_iter:
-  assumes "make_thunk_coupon_raw coupons l r = Some res"
+lemma make_force_result_eq_coupon_run_iter:
+  assumes "make_force_result_eq_coupon coupons l r = Some res"
   shows  "run_iter (n + 71)
           (Config 
            (Suc n')
@@ -121,7 +129,7 @@ lemma make_thunk_coupon_raw_run_iter:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_thunk_coupon_idx]
+                     [Invoke func_make_force_result_eq_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
  =
@@ -129,13 +137,13 @@ lemma make_thunk_coupon_raw_run_iter:
           (Config 
            (Suc n')
            (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr>)
-            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref (create_eq_coupon l r))) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
+            (Frame_context (Redex (V_ref (ConstRefExtern (to_externref res)) # rest_vs) [] b_es) lc f  \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)"
 proof -
   obtain f1 f2 e xs f1l f1r f2l f2r el er where 
          1: "(coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
@@ -146,7 +154,7 @@ proof -
         \<and> is_equal f2r er
         \<and> is_equal f1l l
         \<and> is_equal f2l r
-        \<and> res = (create_eq_coupon l r))" 
+        \<and> res = (create_coupon Eq l r))" 
     using mt_some[OF assms] by auto
 
   let ?state = " (init\<lparr> tabs := (tabs init)[tab_coupons_idx := ((T_tab \<lparr> l_min = 0, l_max = None\<rparr> T_ext_ref), (map (\<lambda>c. (ConstRefExtern (to_externref c))) coupons))] \<rparr> )"
@@ -159,7 +167,7 @@ proof -
           fixpoint_get_coupon_rhs_impl[of ?state]
           fixpoint_is_equal_impl[of ?state]
           fixpoint_create_eq_coupon_impl[of ?state]
-    apply (invoke_coupon_func fuel_idx_def: plus_71 func_make_thunk_coupon_idx_def)
+    apply (invoke_coupon_func fuel_idx_def: plus_71 func_make_force_result_eq_coupon_idx_def)
      apply (table_get_local_set)
      apply (call_api_func)
      apply (if_block)
@@ -179,8 +187,8 @@ proof -
      done
 qed
 
-lemma make_thunk_coupon_raw_run_invoke_none:
-  assumes "make_thunk_coupon_raw coupons l r = None"
+lemma make_force_result_eq_coupon_run_invoke_none:
+  assumes "make_force_result_eq_coupon coupons l r = None"
   shows "\<exists>msg cfg.
           run_iter (n + 71)
           (Config 
@@ -190,19 +198,19 @@ lemma make_thunk_coupon_raw_run_invoke_none:
               (Redex ((V_ref (ConstRefExtern (to_externref r))) #
                       (V_ref (ConstRefExtern (to_externref l))) #
                       rest_vs)
-                     [Invoke func_make_thunk_coupon_idx]
+                     [Invoke func_make_force_result_eq_coupon_idx]
                      b_es)
             lc f \<lparr>f_locs = locs, f_inst = exp_inst\<rparr>) fcs)
         = (cfg, RTrap msg)"
 proof -
   let ?A = "length coupons < 3"
   let ?B = "(\<exists>f1 f2 e xs. coupons = f1 # f2 # e # xs \<and>
-          (\<not>is_force_coupon_api f1 \<or> \<not>is_force_coupon_api f2 \<or> \<not> is_eq_coupon_api e))"
+          (\<not>is_force_coupon f1 \<or> \<not>is_force_coupon f2 \<or> \<not> is_eq_coupon e))"
   let ?C = "(\<exists>f1 f2 e xs f1l f1r f2l f2r el er.
           coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
@@ -225,7 +233,7 @@ proof -
       by (simp add: nat_of_int_i32.abs_eq)
 
     then show ?thesis
-      apply (invoke_coupon_func fuel_idx_def: plus_71  func_make_thunk_coupon_idx_def)
+      apply (invoke_coupon_func fuel_idx_def: plus_71  func_make_force_result_eq_coupon_idx_def)
       apply (table_get_local_set)
       done
   next
@@ -235,13 +243,13 @@ proof -
       assume "?B"
 
       then obtain f1 f2 e xs where "coupons = f1 # f2 # e # xs \<and>
-          (\<not>is_force_coupon_api f1 \<or> \<not>is_force_coupon_api f2 \<or> \<not> is_eq_coupon_api e)"
+          (\<not>is_force_coupon f1 \<or> \<not>is_force_coupon f2 \<or> \<not> is_eq_coupon e)"
         by auto
 
       then show ?thesis
         using fixpoint_is_force_coupon_impl[of ?state]
               fixpoint_is_eq_coupon_impl[of ?state]
-        apply (invoke_coupon_func fuel_idx_def: plus_71  func_make_thunk_coupon_idx_def)
+        apply (invoke_coupon_func fuel_idx_def: plus_71  func_make_force_result_eq_coupon_idx_def)
         apply (table_get_local_set)
         apply (call_api_func)
         apply (if_block)
@@ -255,9 +263,9 @@ proof -
 
     then obtain f1 f2 e xs f1l f1r f2l f2r el er where
           1: "coupons = f1 # f2 # e # xs
-        \<and> is_force_coupon_api f1
-        \<and> is_force_coupon_api f2
-        \<and> is_eq_coupon_api e
+        \<and> is_force_coupon f1
+        \<and> is_force_coupon f2
+        \<and> is_eq_coupon e
         \<and> get_coupon_lhs f1 = Some f1l
         \<and> get_coupon_rhs f1 = Some f1r
         \<and> get_coupon_lhs f2 = Some f2l
@@ -274,7 +282,7 @@ proof -
             fixpoint_get_coupon_lhs_impl[of ?state]
             fixpoint_get_coupon_rhs_impl[of ?state]
             fixpoint_is_equal_impl[of ?state]
-   apply (invoke_coupon_func fuel_idx_def: plus_71 func_make_thunk_coupon_idx_def)
+   apply (invoke_coupon_func fuel_idx_def: plus_71 func_make_force_result_eq_coupon_idx_def)
         apply (table_get_local_set)
         apply (call_api_func)
         apply (if_block)

@@ -1,5 +1,5 @@
 theory custom_method
-  imports Wasm_Proof_Playground util
+  imports util
 begin
 
 method invoke_coupon_func uses fuel_idx_def =
