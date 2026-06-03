@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: ./generate.sh input.wat
+# Usage: ./generate.sh
 OUTPUT="wasm-proofs/Wasm-Proof/Init.thy"
 
 echo "theory Init" > $OUTPUT
@@ -9,7 +9,7 @@ echo "begin" >> $OUTPUT
 
 echo "" >> $OUTPUT
 
-./spec/interpreter/wasm -pisa $1 >> $OUTPUT
+./spec/interpreter/wasm -pisa coupon.wat >> $OUTPUT
 
 echo "" >> $OUTPUT
 echo "end" >> $OUTPUT
