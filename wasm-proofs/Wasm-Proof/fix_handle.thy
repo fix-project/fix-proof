@@ -37,6 +37,7 @@ definition get_blob_size :: "BlobName \<Rightarrow> nat" where
   "get_blob_size b \<equiv> length (get_blob_data b)"
 
 (* Blob/Tree creation rules *)
+(* These axioms state that a created blob/tree can be later retrieved by the same handle *)
 
 axiomatization where
   get_blob_data_create_blob[simp]:
@@ -45,6 +46,9 @@ axiomatization where
   get_tree_raw_create_tree[simp]:
   "get_tree_raw (create_tree xs) = xs"
   and
+  (* TODO: This axiom is needed to handle the case when a tree is evaled to itself. Right now the eval_tree
+  always creates a new tree. Changing eval_tree to only create a new tree when the tree does not eval
+  to itself should make this axiom unnecessary.*)
   create_tree_get_tree_raw[simp]:
   "create_tree (get_tree_raw l) = l"
   and
@@ -59,6 +63,10 @@ axiomatization where
 definition tree_child :: "TreeName \<Rightarrow> TreeName \<Rightarrow> bool"
   where "tree_child t2 t1 \<equiv> (Data (Object (TreeObj t2))) \<in> set (get_tree_raw t1) \<or> (Data (Ref (TreeRef t2))) \<in> set (get_tree_raw t2)"
 
+(* wfp stands for wellfounded predicate, which means that there is no infinite descending chain in
+  tree_child, which means that a tree cannot be a child of itself. The definition rightnow is looser
+  than the actual property of Fix, since Fix also has that a Thunk of a Tree cannot be a child of
+  the Tree, but as of now, this definition is enough for the proof *)
 axiomatization where
   wfp_tree_child: "wfP tree_child"
 

@@ -2,6 +2,8 @@ theory evaluation_properties
   imports evaluation
 begin
 
+(* In this module, we start to talk about X again. The first part here gets rid of the same_typed
+   premises via Value Trees, and that eval outputs Value Trees.*)
 lemma value_tree_to_sametypedness:
   fixes X :: "handle \<Rightarrow> handle \<Rightarrow> bool"
   assumes tree_cong: "\<And>t1 t2. X (HTreeObj t1) (HTreeObj t2)
@@ -697,8 +699,24 @@ next
     by (simp add: D1 D2 relaxed_X_def)
 qed
 
+(* This is the main lemma that ties everything up to this point together.*)
 lemma eq_forces_to_induct:
+  (* The reason why I did these lemmas by allowing an arbitrary X with a list of properties, instead
+     of an actual relation, is to allow reusing the same proof with different relations. The actual
+     definitions of the equivalence relations are in later parts of the proof, but here is a good
+     point to layout the road map a bit. There will be three relations defined:
+        1) coinductive R: small-step equivalences by definition
+        2) coinductive R': small-step equivalences that we want to prove
+        3) eq := equivclp R (equivalence closure of R)
+
+     If we are only looking at the definition of R, only a subset of the following congruence properties
+     is true. If we are only looking at the definition of R', all the following congruent properties
+     are true. After proving R' \<Longrightarrow> R, all the following congruent properties are true for R. By keeping
+     X as a free variable, I can reuse this lemma for R', and after proving R' \<Longrightarrow> R, for R.
+  *)
   fixes X :: "handle \<Rightarrow> handle \<Rightarrow> bool"
+
+  (* blob_cong is good by definition *)
   assumes blob_cong: "\<And>b1 b2. X (HBlobObj b1) (HBlobObj b2)
                               \<Longrightarrow> get_blob_data b1 = get_blob_data b2"
   assumes tree_cong: "\<And>t1 t2. X (HTreeObj t1) (HTreeObj t2)
@@ -717,10 +735,20 @@ lemma eq_forces_to_induct:
                                   \<Longrightarrow> X (HBlobObj b1) (HBlobObj b2)"
   assumes tree_ref_complete: "\<And>t1 t2. X (HTreeRef t1) (HTreeRef t2) 
                                   \<Longrightarrow> X (HTreeObj t1) (HTreeObj t2)"
+  (* but strict_encode_cong is not quite. Its goodness lies in how the evaluation semantics is defined,
+     and hence I keep it in R'*)
   assumes strict_encode_cong: "\<And>t1 t2. X (Thunk t1) (Thunk t2)
                                        \<Longrightarrow> X (Encode (Strict t1)) (Encode (Strict t2))"
   assumes shallow_encode_cong: "\<And>t1 t2. X (Thunk t1) (Thunk t2)
                                         \<Longrightarrow> X (Encode (Shallow t1)) (Encode (Shallow t2))"
+  (* application_thunk_cong is definitely not by definition. What belongs to R and what belongs to
+     R' is not a yes or no question..For example, blob_ref_cong is now in R, but I could also see
+     that it belongs to R' and roots itself in how lift/lower is defined. BUT having less things in
+     R is the direction to go. Since eq is defined as the equivalence closure of R, if we make R too
+     broad, it becomes hard to prove things in eq, and the current definition of R was from several
+     rounds of editing to find something that's powerful enough and yet not overly powerful. My intuition
+     is that there is a smallest R that contains the smallest set of definitions, and I don't think
+     the current R is that. *)
   assumes application_thunk_cong: 
             "\<And> t1 t2. X (HTreeObj t1) (HTreeObj t2)
                       \<Longrightarrow> X (Thunk (Application t1)) (Thunk (Application t2))"
@@ -764,6 +792,9 @@ lemma eq_forces_to_induct:
          X (Encode e) h2 \<Longrightarrow> 
          \<not> (\<exists>e2. h2 = Encode e2) \<Longrightarrow>
          executes_to e h2"
+  (* The encode_reasons/thunk_reasons allow us to case on how we relate two Encodes/Thunks in
+     the body of the proof. These _reasons are also only good on R' if we are simply looking at
+     the definition of R and R'*)
   assumes X_encode_reasons: "\<And>t1 t2. 
          X (Encode (Strict t1)) (Encode (Strict t2)) \<Longrightarrow> 
          X (Thunk t1) (Thunk t2) \<or>
@@ -792,6 +823,8 @@ lemma eq_forces_to_induct:
      (think t1 = Some (Encode (Shallow t2)))"
   assumes X_self: "\<And>h. X h h"
   assumes E: "X h1 h2"
+  (* This proof goal is a bit hard to read, but the intuition behind this is that I want that
+     two handles related could have a different fuel that works *)
   shows
     "(
        ((\<exists>t1. h1 = Thunk t1) \<longrightarrow>
@@ -1091,6 +1124,7 @@ next
               v1 = Encode (Strict t2) \<or>
              v1 = Encode (Shallow t2)))"
 
+    (* Subparts of this proof work with a similar flavor. So let's look at this one in greater details. *)
     have "?case1 \<longrightarrow> ?endgoal"
     proof (intro allI impI)
       fix v1
@@ -1105,10 +1139,13 @@ next
         obtain tree1 tree2 where EQTREE: "X (HTreeObj tree1) (HTreeObj tree2) \<and> t1 = Application tree1 \<and> t2 = Application tree2"
           using EQTREE by blast
 
+        (* So first we breaks the (Suc f') fuel to the f' fuel step, which allows us to use the induction
+           hypothesis. Here we step from thinking the thunk, to first evaling the tree. *)
         then obtain tree' where EVTree1: "eval_tree_with_fuel f' tree1 = Some tree'"
                           and   Apply1: "apply_tree tree' = Some v1"
           by (metis (no_types, lifting) Think Thunk.simps(17) option.case_eq_if option.distinct(1) option.exhaust_sel think_with_fuel.simps(2))
-        
+
+        (* then from the induction hypothesis, we have the claim on tree2 *)
         then obtain tree2' where EVTree2: "evals_tree_to tree2 tree2'"
                            and  EQApplyTree: "X (HTreeObj tree') (HTreeObj tree2')"
           using eq_tree_eval_fuel_n[OF tree_cong tree_complete] EQTREE eval_cong_f'
@@ -1122,11 +1159,13 @@ next
           using EVTree2 eval_tree_to_value_handle
           using eval_tree_unique by blast
 
+        (* We have same_typed_tree on the two Trees from the smaller lemmas we proved before *)
         have sametyped: "same_typed_tree tree' tree2'"
           using VH1 VH2 EQApplyTree tree_cong X_preserve_value_handle value_tree_to_sametypedness
           using value_handle.simps 
           by force
 
+        (* then we use apply_tree_X proven before to relate the apply_tree result *)
         have "rel_opt X (apply_tree tree') (apply_tree tree2') \<and> rel_opt same_typed_handle (apply_tree tree') (apply_tree tree2')"
           using apply_tree_X[OF blob_cong tree_cong blob_complete tree_complete blob_ref_cong tree_ref_cong blob_ref_complete tree_ref_complete strict_encode_cong shallow_encode_cong application_thunk_cong selection_thunk_cong digestion_thunk_cong identification_thunk_cong] sametyped EQApplyTree          
           by auto
@@ -1140,6 +1179,7 @@ next
         then have "thinks_to t2 v2"
           using EQTREE EVTree2 eval_tree_unique think_hs think_some by auto
 
+        (* and then we combine the eval step and the apply step to the think *)
         from SAMETYPEOUT
         have EQOUT: "strengthen X v1 v2"
         proof (cases)

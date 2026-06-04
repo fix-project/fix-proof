@@ -2,13 +2,19 @@ theory evaluation
   imports apply_tree digest slice identify
 begin
 
+(* This whole module is about the evaluation semantics of Fix. In each of the imports, we model how
+   apply/select/identify actually works, and show that for each of them, given any relation X that
+   has a specific list of congruent properties, the operations are also congruent (i.e. given X-related
+   input, it returns X-related options as outputs. In this module, we are not using the X relations
+   yet, but instead it's just about defining the evaluation semantics.*)
+
 fun is_thunk :: "handle \<Rightarrow> bool" where
   "is_thunk (Thunk _) = True"
 | "is_thunk _ = False"
 
-(* infixl takes a number for the precedence level of the symbol. It decides how strong the binding power is. (e.g. whether a |>> b + c is understood as (a |>> b) + c or a |>> (b + c) 
-
-precedence level of =\<and>equiv is 2 *)
+(* infixl takes a number for the precedence level of the symbol. It decides how strong the
+   binding power is. (e.g. whether a |>> b + c is understood as (a |>> b) + c or a |>> (b + c) 
+   precedence level of =\<and>equiv is 2 *)
 
 abbreviation obind (infixl "|>>" 55) where
   "x |>> f \<equiv> (case x of
@@ -49,6 +55,9 @@ fun get_thunk_inner :: "Thunk \<Rightarrow> handle"
 | "get_thunk_inner (Selection t) = HTreeObj t"
 | "get_thunk_inner (Digestion t) = HTreeObj t"
 
+(* This is fuel-based implementation of the doc/fix.hs semantics. Each recursive call consumes 1 fuel,
+   and it returns None when running out of fuel. Notice that it invokes apply_tree/identify, which are
+   defined in the imported modules. *)
 fun think_with_fuel :: "nat \<Rightarrow> Thunk \<Rightarrow> handle option"
 and force_with_fuel :: "nat \<Rightarrow> Thunk \<Rightarrow> handle option"
 and execute_with_fuel :: "nat \<Rightarrow> Encode \<Rightarrow> handle option"
@@ -115,6 +124,8 @@ where
                              None \<Rightarrow> None
                            | Some h \<Rightarrow> eval_with_fuel n h))"
 
+(* We deifine op_to to be that there exists some fuel that op_with_fuel fuel on the input gives a
+   Some output. This definition does not make these relation function-like though. *)
 definition thinks_to :: "Thunk \<Rightarrow> handle \<Rightarrow> bool" where
   "thinks_to h h1 \<equiv> (\<exists>fuel. think_with_fuel fuel h = Some h1)"
 
@@ -130,7 +141,7 @@ definition evals_tree_to :: "TreeName \<Rightarrow> TreeName \<Rightarrow> bool"
 definition evals_to :: "handle \<Rightarrow> handle \<Rightarrow> bool" where
   "evals_to h h1 \<equiv> (\<exists>fuel. eval_with_fuel fuel h = Some h1)"
 
-(* Determinism *)
+(* Here are some helpful lemmas on the return types of force and eval *)
 lemma force_with_fuel_to_data:
   assumes "force_with_fuel n h = Some r"
   shows "(\<exists>d. r = Data d)"
@@ -184,6 +195,7 @@ next
   qed
 qed
 
+(* Here are some helpful lemmas to translate between eval_list and eval on each entry of the list *)
 lemma eval_list_to_list_all:
   "eval_list_with_fuel f xs = Some ys \<Longrightarrow> list_all2 (\<lambda>x y. eval_with_fuel f x = Some y) xs ys"
 proof (induction xs arbitrary: ys)
@@ -225,6 +237,8 @@ next
   then show ?case using Consy by auto
 qed
 
+(* By induct on the semantic definition, we are able to show that adding more fuels to an already
+   working fuel does not change the output *)
 lemma fuel_padding:
  fixes f k :: nat
   shows
@@ -547,6 +561,10 @@ next
   then show ?case by auto
 qed
 
+(* And following from the fuel_padding, thinks_to must be a function-like relation. Since there
+   exists a smallest fuel f that leads to a Some output and any other fuel that leads to a Some output
+   must be the same as the smallest fuel *)
+
 lemma thinks_to_deterministic:
   assumes "thinks_to h h1" and "thinks_to h h2"
   shows "h1 = h2"
@@ -690,6 +708,8 @@ proof
     by blast
 qed
 
+(* The endpoint of a op_to relation is None if no fuel works, or Some v, where v is the unique output
+   (which follows from the deterministic lemmas) *)
 definition endpoint :: "('a \<Rightarrow> 'b \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'b option" where
   "endpoint f h \<equiv>
      (if (\<exists>v. f h v)
@@ -858,6 +878,7 @@ lemma eval_deterministic:
   using eval_some evals_to_deterministic assms(1) assms(2)
   by auto
 
+(* Helpful lemmas on eval Trees *)
 lemma eval_entry_to_eval_tree:
   assumes "list_all2 (\<lambda>x y. evals_to x y) xs ys"
   shows "eval (HTreeObj (create_tree xs)) = Some (HTreeObj (create_tree ys))"
@@ -912,6 +933,10 @@ proof -
   then show ?thesis using 5 by auto
 qed
 
+(* op_hs lemmas are meant to bridge the gap back to the Haskell Fix semantics. All the operations
+   here are defined as Isabelle definitions that are kinda independent of each other, but we want to
+   show that putting them together gives back something that looks the same as the Haskell semantics.
+   These are also handy for later parts of the proof *)
 lemma eval_hs:
   "eval h = 
     (case h of
@@ -1363,6 +1388,7 @@ next
   qed
 qed
 
+(* Now we add the definition of Values *)
 inductive value_tree :: "TreeName \<Rightarrow> bool"
 and value_handle :: "handle \<Rightarrow> bool"
 where

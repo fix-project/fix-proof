@@ -364,7 +364,7 @@ proof (induction n arbitrary: h)
       case (Ref ref1)
       then have Ref1: "r = Data (Ref ref1)" and R1: "h = r"
         using "0" Data Ref by auto
-      show ?thesis sledgehammer
+      show ?thesis
         by (simp add: R1)
     qed
   next
@@ -410,7 +410,7 @@ next
   moreover have "\<exists>t. h = HTreeObj t \<Longrightarrow> ?case"
   proof -
     assume "\<exists>t. h = HTreeObj t" 
-    then obtain t where T: "h = HTreeObj t" sledgehammer
+    then obtain t where T: "h = HTreeObj t"
       by blast
     then obtain t' where T': "r = HTreeObj t'"
       using Suc.prems eval_tree_to_eval_entry eval_unique evals_to_def
