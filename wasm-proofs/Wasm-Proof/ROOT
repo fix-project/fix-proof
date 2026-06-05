@@ -1,2 +1,6 @@
 session "Wasm-Proof" = WebAssembly_Dev +
+  options [document = pdf, document_output = "output"]
   theories isabelle_coupon make_coupon
+  document_files
+   "root.tex"
+
