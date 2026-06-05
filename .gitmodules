@@ -3,4 +3,4 @@
 	url = https://github.com/yhdengh/WasmCert-Isabelle.git
 [submodule "spec"]
 	path = spec
-	url = https://github.com/conrad-watt/spec.git
+	url = https://github.com/fix-project/spec.git
