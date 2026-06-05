@@ -61,7 +61,7 @@ axiomatization where
 (* Trees are acyclic *)
 
 definition tree_child :: "TreeName \<Rightarrow> TreeName \<Rightarrow> bool"
-  where "tree_child t2 t1 \<equiv> (Data (Object (TreeObj t2))) \<in> set (get_tree_raw t1) \<or> (Data (Ref (TreeRef t2))) \<in> set (get_tree_raw t2)"
+  where "tree_child t2 t1 \<equiv> (Data (Object (TreeObj t2))) \<in> set (get_tree_raw t1)"
 
 (* wfp stands for wellfounded predicate, which means that there is no infinite descending chain in
   tree_child, which means that a tree cannot be a child of itself. The definition rightnow is looser
