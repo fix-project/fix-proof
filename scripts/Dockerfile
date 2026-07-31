@@ -1,3 +1,5 @@
+# A base image with Isabelle2025-2, latest AFP, and opam dependencies for spec/interpreter
+
 FROM makarius/isabelle:Isabelle2025-2
 
 USER root

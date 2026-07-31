@@ -1,5 +1,6 @@
 *.thy~
 *#*thy#
 *.marks
+*.zst
 wasm-proofs/Wasm-Proof/output
 wasm-proofs/Wasm-Proof/Init.thy

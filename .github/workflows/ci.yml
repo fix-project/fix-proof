@@ -1,0 +1,116 @@
+name: Validate Isabelle build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Read cache image
+        id: cache
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cache_tag="$(
+            git log -1 \
+              --format='%(trailers:key=Isabelle-Cache,valueonly)' |
+            head -n1 |
+            xargs
+          )"
+
+          work_dir="$(
+            git log -1 \
+              --format='%(trailers:key=Workdir,valueonly)' |
+            head -n1 |
+            xargs
+          )"
+
+          if [[ -z "$cache_tag" ]]; then
+            echo "No Isabelle-Cache trailer; building without cache"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "image=" >> "$GITHUB_OUTPUT"
+            echo "workdir=fix-proof" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          cache_image="ghcr.io/fix-project/isabelle-cache:$cache_tag"
+
+          echo "Using Isabelle cache image: $cache_image"
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$cache_tag" >> "$GITHUB_OUTPUT"
+          echo "image=$cache_image" >> "$GITHUB_OUTPUT"
+
+          if [[ -z "$work_dir" ]]; then
+            echo "Using default working dir: fix-proof"
+            echo "workdir=fix-proof" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "Using working dir: $work_dir"
+            echo "workdir=$work_dir" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull cache image
+        if: steps.cache.outputs.enabled == 'true'
+        run: docker pull '${{ steps.cache.outputs.image }}'
+
+      - name: Create heap dir
+        run: mkdir -p "$HOME/heaps"
+
+      - name: Extract cache
+        if: steps.cache.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          container="$(
+            docker create '${{ steps.cache.outputs.image }}' /bin/true
+          )"
+
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+
+          docker cp \
+            "$container:/isabelle-heaps.tar.zst" \
+            ./isabelle-heaps.tar.zst
+
+          tar --zstd -xf isabelle-heaps.tar.zst \
+            -C "$HOME/heaps"
+
+      - name: Pull base image
+        run: docker pull ghcr.io/fix-project/isabelle-base:latest
+
+      - name: Check uid
+        run: |
+          ls -ld "$GITHUB_WORKSPACE" "$HOME/heaps"
+          id
+          sudo chown -R 1000:1000 "$GITHUB_WORKSPACE" "$HOME/heaps"
+
+      - name: Verify build
+        run: |
+          docker run --rm \
+            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/home/ubuntu/'${{ steps.cache.outputs.workdir }}' \
+            --mount type=bind,src="$HOME/heaps",dst=/home/ubuntu/.isabelle/heaps \
+            --workdir /home/ubuntu/'${{ steps.cache.outputs.workdir }}' \
+            --entrypoint make \
+            ghcr.io/fix-project/isabelle-base:latest
