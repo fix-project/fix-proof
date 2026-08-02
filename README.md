@@ -47,3 +47,25 @@ or
 ```bash
 make
 ```
+
+# Packaging and sharing local Isabelle heap
+
+To speed up the github action, you could choose to package your local Isabelle heap image. After building the whole project:
+
+```bash
+cd scripts
+./package-heap-cache.sh
+```
+The script pushes a docker image to `ghcr.io/fix-project`, and make sure the credentials are setup properly before running the script.
+
+Record the built docker image tag, and add
+```
+Isabelle-Cache: $IMAGETAG
+```
+to the end of your commit message.
+
+The generated heap images could only be used if the relative path of the project directory to your `$HOME` is `$HOME/fix-proof`. If that's not the case, include the relative path in your commit message as:
+
+```
+Workdir: $RELATIVEPATH
+```
