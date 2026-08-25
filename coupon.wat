@@ -1,4 +1,3 @@
-(module
   (import "fixpoint" "is_equal" (func $is_equal (param externref) (param externref) (result i32)))
   (import "fixpoint" "is_storage_coupon" (func $is_storage_coupon (param externref) (result i32)))
   (import "fixpoint" "is_force_coupon" (func $is_force_coupon (param externref) (result i32)))
@@ -562,4 +561,3 @@
      end
      )
   (export "coupons" (table $coupons))
-)
