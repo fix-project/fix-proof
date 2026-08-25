@@ -10,6 +10,3 @@ thy: wasm-proofs/Wasm-Proof/Init.thy
 
 interpreter:
 	$(MAKE) -C spec/interpreter
-
-
-
