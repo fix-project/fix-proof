@@ -1,9 +1,12 @@
 .DEFAULT_GOAL := all
-.PHONY: all check clean rocq rocq-check rocq-init
+.PHONY: all check check-generated clean rocq rocq-check rocq-init
 
 all: rocq
 
 check: rocq-check
+
+check-generated:
+	$(MAKE) -C wasm-proofs/rocq check-generated
 
 clean:
 	$(MAKE) -C wasm-proofs/rocq clean

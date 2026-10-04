@@ -24,7 +24,8 @@ opam exec -- make check
 ```
 
 `make` compiles the Rocq proofs. `make check` also checks generated-byte
-freshness and runs `coqchk` over every proof module. CI runs this check.
+freshness before building and runs `rocq check` over every proof module listed
+in `_CoqProject`. CI runs this check.
 `make clean` removes generated build artifacts. The `rocq`, `rocq-check`, and
 `rocq-init` targets remain available for explicit invocation.
 
@@ -34,6 +35,12 @@ to Wasm bytes, and emits `Init.v`. Rocq parses those exact bytes and proves
 parser success, module typing, function bodies, exports, and dispatch indices.
 A stale generated file fails `make check`; unchanged generation preserves its
 modification time to avoid rebuilding the proof unnecessarily.
+
+`make check-generated` checks freshness without compiling. The opam metadata
+declares Python 3 and WABT dependencies and runs `make check` when installed
+with `--with-test`; it also checks freshness before the package build in that
+mode. On systems without a declared WABT package mapping, install `wat2wasm`
+manually. This package checks the repository's proofs in place.
 
 Execution theorems use WasmCert-Coq's finite reduction semantics. Tree execution
 states the original i32 size restrictions as explicit premises. The storage,

@@ -1,6 +1,6 @@
-.PHONY: all check clean
+.PHONY: all check check-generated clean
 
-MODULES := Handle Identify Slice Digest ApplyTree Evaluation EvaluationProperties Congruence Equivalence EquivalenceClosure Coupon CouponApi CouponConstructors Host Init ModuleValidation ModuleLayout ExecutionUtil SelfCoupon EvalBlobCoupon CouponTable SymCoupon TransCoupon MappedEqCoupon ThinkToForceCoupon ForceToEncodeStrictCoupon EvalEqCoupon ThinkApplicationCoupon ForceResultEqCoupon WasmNatural Dispatcher TreeLayout LoopUtil TreeCoupon MakeCoupon
+MODULES := $(patsubst %.v,FixProof.%,$(filter %.v,$(shell cat _CoqProject)))
 
 all: Init.v CoqMakefile
 	$(MAKE) -f CoqMakefile all
@@ -9,11 +9,15 @@ Init.v: ../../coupon.wat ../../scripts/generate-rocq-init.py
 	python3 ../../scripts/generate-rocq-init.py
 
 CoqMakefile: _CoqProject
-	coq_makefile -f _CoqProject -o $@
+	rocq makefile -f _CoqProject -o $@
 
-check: all
+check-generated:
 	python3 ../../scripts/generate-rocq-init.py --check
-	coqchk -silent -Q . FixProof $(addprefix FixProof.,$(MODULES))
+
+# Check committed generated input before the build can regenerate it.
+check: check-generated
+	$(MAKE) all
+	rocq check -silent -Q . FixProof $(MODULES)
 
 clean: CoqMakefile
 	$(MAKE) -f CoqMakefile clean
