@@ -20,7 +20,7 @@ Module CouponApi (S : STORAGE) (C : COUPON_STORAGE S).
     match h with Data (Object (TreeObj t)) => Some (get_tree_size t) | _ => None end.
   Definition get_tree_data_api h i :=
     match h with Data (Object (TreeObj t)) =>
-      if i <? get_tree_size t then Some (get_tree_data t i) else None
+      nth_error (get_tree_raw t) i
     | _ => None end.
   Definition create_application_thunk_api h :=
     match h with Data (Object (TreeObj t)) => Some (Thunk (Application t)) | _ => None end.

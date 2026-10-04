@@ -205,14 +205,9 @@ Module Coupon (S : STORAGE) (P : PROGRAM S).
   Lemma eval_list_unbounded_fuel xs ys : Forall2 (fun h v => eval h = Some v) xs ys ->
     exists n, eval_list_with_fuel n xs = Some ys.
   Proof.
-    intro Related; induction Related.
-    - exists 0; reflexivity.
-    - apply eval_some in H; destruct H as [n Head], IHRelated as [m Tail].
-      assert (eval_list_with_fuel (n+m) l = Some l') as Tail'.
-      { rewrite Nat.add_comm; destruct (fuel_padding m n) as [_ [_ [_ [Pad _]]]]; apply Pad; exact Tail. }
-      exists (n+m); change (obind (eval_with_fuel (n+m) x)
-        (fun v => omap (cons v) (eval_list_with_fuel (n+m) l)) = Some (y :: l')).
-      rewrite (eval_padding n m _ _ Head); cbn [obind]; rewrite Tail'; reflexivity.
+    intro Related; apply evals_to_tree_to.
+    eapply Forall2_impl; [|exact Related].
+    intros h v Ev; apply eval_some; exact Ev.
   Qed.
   Lemma eval_list_helper xs : Forall (fun h => exists v, eval h = Some v) xs ->
     exists ys, Forall2 evals_to xs ys.

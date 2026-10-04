@@ -331,9 +331,8 @@ Module CouponConstructors (S : STORAGE) (P : PROGRAM S) (C : COUPON_STORAGE S).
   Qed.
   Lemma tree_api_in_bounds t i : i < get_tree_size t -> API.get_tree_data_api (HTreeObj t) i = Some (get_tree_data t i).
   Proof.
-    intro Bound; change ((if i <? get_tree_size t then Some (get_tree_data t i) else None) = Some (get_tree_data t i)).
-    assert (i <? get_tree_size t = true) as Guard by (apply Nat.ltb_lt; exact Bound).
-    rewrite Guard; reflexivity.
+    intro Bound; unfold API.get_tree_data_api, get_tree_data.
+    apply nth_error_nth'; exact Bound.
   Qed.
   Lemma tree_entry_match_good tag coupons t1 t2 i : Forall coupon_good coupons ->
     forallb (API.is_type tag) coupons = true -> i < length coupons ->

@@ -44,95 +44,63 @@ Module MakeCoupon (S : STORAGE) (P : PROGRAM S) (C : COUPON_STORAGE S) (R : EXTE
     Proof. unfold ForceEq.T.U.W.fixpoint_host, D.T.U.W.fixpoint_host; f_equal; apply proof_irrelevance. Qed.
     Lemma tree_host_eq : Tree.L.T.U.W.fixpoint_host = D.T.U.W.fixpoint_host.
     Proof. unfold Tree.L.T.U.W.fixpoint_host, D.T.U.W.fixpoint_host; f_equal; apply proof_irrelevance. Qed.
+    Lemma runs_host_transport (source : @host fixpoint_host_functions mem)
+      (Same : source = D.T.U.W.fixpoint_host) s f es es' :
+      (forall hs : @host_state fixpoint_host_functions mem source,
+        Relation_Operators.clos_refl_trans _
+          (fun a b => @reduce fixpoint_host_functions mem source hs s f a hs s f b) es es') ->
+      D.T.U.runs s f es es'.
+    Proof. intro All; rewrite Same in All; exact (All tt). Qed.
+
     Lemma self_runs_shared s f es es' : Self.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem Self.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem Self.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite self_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ self_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma sym_runs_shared s f es es' : Sym.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem Sym.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem Sym.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite sym_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ sym_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma trans_runs_shared s f es es' : Trans.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem Trans.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem Trans.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite trans_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ trans_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma mapped_runs_shared s f es es' : Mapped.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem Mapped.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem Mapped.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite mapped_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ mapped_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma think_force_runs_shared s f es es' : ThinkForce.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem ThinkForce.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem ThinkForce.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite think_force_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ think_force_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma force_strict_runs_shared s f es es' : ForceStrict.M.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem ForceStrict.M.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem ForceStrict.M.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite force_strict_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ force_strict_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma eval_eq_runs_shared s f es es' : EvalEq.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem EvalEq.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem EvalEq.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite eval_eq_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ eval_eq_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma think_app_runs_shared s f es es' : ThinkApp.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem ThinkApp.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem ThinkApp.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite think_app_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ think_app_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma force_eq_runs_shared s f es es' : ForceEq.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem ForceEq.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem ForceEq.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite force_eq_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ force_eq_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
     Lemma tree_runs_shared s f es es' : Tree.L.T.U.runs s f es es' -> D.T.U.runs s f es es'.
     Proof.
-      intro Run.
-      assert (All : forall hs : @host_state fixpoint_host_functions mem Tree.L.T.U.W.fixpoint_host,
-        Relation_Operators.clos_refl_trans _
-          (fun a b => @reduce fixpoint_host_functions mem Tree.L.T.U.W.fixpoint_host hs s f a hs s f b) es es').
-      { intro hs; destruct hs; exact Run. }
-      rewrite tree_host_eq in All; exact (All tt).
+      intro Run; apply (runs_host_transport _ tree_host_eq).
+      intro hs; destruct hs; exact Run.
     Qed.
 
     (** Self and blob evaluation do not read the coupon table. Their native
