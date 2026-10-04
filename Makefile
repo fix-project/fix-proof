@@ -1,12 +1,18 @@
-.PHONY: all
+.DEFAULT_GOAL := all
+.PHONY: all check clean rocq rocq-check rocq-init
 
-all: thy
-	isabelle build -D wasm-proofs -b -v Wasm-Proof
+all: rocq
 
-wasm-proofs/Wasm-Proof/Init.thy: coupon.wat generate.sh interpreter
-	./generate.sh
+check: rocq-check
 
-thy: wasm-proofs/Wasm-Proof/Init.thy
+clean:
+	$(MAKE) -C wasm-proofs/rocq clean
 
-interpreter:
-	$(MAKE) -C spec/interpreter
+rocq-init:
+	python3 scripts/generate-rocq-init.py
+
+rocq:
+	$(MAKE) -C wasm-proofs/rocq
+
+rocq-check:
+	$(MAKE) -C wasm-proofs/rocq check

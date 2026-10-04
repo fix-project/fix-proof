@@ -1,3 +1,0 @@
-FROM scratch
-ARG CACHE_FILE
-COPY ${CACHE_FILE} /isabelle-heaps.tar.zst

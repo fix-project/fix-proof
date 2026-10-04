@@ -1,0 +1,9 @@
+opam-version: "2.0"
+synopsis: "Fix coupon proofs in Rocq using WasmCert-Coq"
+maintainer: "Fix project"
+authors: "Fix project"
+depends: [
+  "coq" {= "9.1.1"}
+  "coq-wasm" {= "2.2.1"}
+]
+build: [make "rocq"]

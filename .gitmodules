@@ -1,6 +1,3 @@
-[submodule "wasm-proofs/WasmCert-Isabelle"]
-	path = wasm-proofs/WasmCert-Isabelle
-	url = https://github.com/yhdengh/WasmCert-Isabelle.git
-[submodule "spec"]
-	path = spec
-	url = https://github.com/fix-project/wasm-spec.git
+[submodule "wasm-proofs/WasmCert-Coq"]
+	path = wasm-proofs/WasmCert-Coq
+	url = https://github.com/WasmCert/WasmCert-Coq.git

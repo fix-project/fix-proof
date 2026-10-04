@@ -1,0 +1,27 @@
+name: Validate Rocq proofs
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rocq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3"
+      - name: Install WAT compiler
+        run: sudo apt-get update && sudo apt-get install -y wabt
+      - name: Install pinned WasmCert-Coq and Rocq dependencies
+        run: |
+          opam pin add -yn coq-wasm wasm-proofs/WasmCert-Coq
+          opam install . --deps-only -y
+      - name: Compile and check the Rocq modules
+        run: opam exec -- make check

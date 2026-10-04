@@ -1,6 +1,10 @@
-*.thy~
-*#*thy#
-*.marks
-*.zst
-wasm-proofs/Wasm-Proof/output
-wasm-proofs/Wasm-Proof/Init.thy
+_opam/
+*.vo
+*.vos
+*.vok
+*.glob
+.*.aux
+.lia.cache
+wasm-proofs/rocq/CoqMakefile
+wasm-proofs/rocq/CoqMakefile.conf
+wasm-proofs/rocq/.CoqMakefile.d

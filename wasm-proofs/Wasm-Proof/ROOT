@@ -1,2 +1,0 @@
-session "Wasm-Proof" = WebAssembly_Dev +
-  theories isabelle_coupon make_coupon

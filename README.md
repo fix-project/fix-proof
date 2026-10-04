@@ -1,71 +1,42 @@
-# Environment setup
+# Fix coupon proofs
 
-## Isabelle
-This project requires Isabelle2025-2. As of Jun 2026, the installation instructions can be found [here](https://isabelle.in.tum.de/installation.html).
+This repository proves the Fix evaluation and coupon rules in Rocq, and proves
+that the constructors in `coupon.wat` return good coupons or trap as specified.
+The development uses Rocq 9.1.1 and
+[WasmCert-Coq](https://github.com/WasmCert/WasmCert-Coq), pinned to commit
+`5e6df8d60c94aa5dbeff633f5eb48caa6c64c225` (package version 2.2.1).
 
-## Isabelle AFP
-Download AFP [here](https://isa-afp.org/download/).
+The 35 proof modules are in `wasm-proofs/rocq`. They retain the development's
+structure: handles, evaluation, congruence, coinductive equivalence, equivalence
+closure, coupon judgements, guarded constructors, and Wasm execution.
+[STATUS.md](wasm-proofs/rocq/STATUS.md) records coverage and verification;
+[CORRESPONDENCE.md](wasm-proofs/rocq/CORRESPONDENCE.md) explains the Isabelle-to-Rocq
+translations and assumptions.
 
-Assume that `isabelle` has been installed with `PATH` set properly, before building the project, add AFP to Isabelle:
+Install opam, Python 3, and WABT (`wat2wasm`), then run from this directory:
 
-```bash
-tar -xvf afp-current.tar.gz
-isabelle components -u ${EXTRACTED_AFP_DIR}/thys
+```sh
+git submodule update --init --recursive
+opam pin add -yn coq-wasm wasm-proofs/WasmCert-Coq
+opam install . --deps-only -y
+opam exec -- make
+opam exec -- make check
 ```
 
-See `scripts/install-isabelle.sh` for more info.
+`make` compiles the Rocq proofs. `make check` also checks generated-byte
+freshness and runs `coqchk` over every proof module. CI runs this check.
+`make clean` removes generated build artifacts. The `rocq`, `rocq-check`, and
+`rocq-init` targets remain available for explicit invocation.
 
-## spec
-Build `spec/interpreter`. It requires installing OCaml ([instructions](https://ocaml.org/docs/installing-ocaml)). See `spec/interpreter/README.md` for more info.
+After editing `coupon.wat`, regenerate its representation with
+`make rocq-init`. The generator wraps its module fields for WABT, compiles them
+to Wasm bytes, and emits `Init.v`. Rocq parses those exact bytes and proves
+parser success, module typing, function bodies, exports, and dispatch indices.
+A stale generated file fails `make check`; unchanged generation preserves its
+modification time to avoid rebuilding the proof unnecessarily.
 
-# Workflow
-
-## Update `coupon.wat`
-
-After making changes to `coupon.wat`, run `generate.sh` to update the coupon ISA in Isabelle.
-
-or
-
-```bash
-make thy
-```
-
-## Invoke jedit
-
-```bash
-isabelle jedit -d wasm-proofs
-```
-
-## Build from command line
-
-```bash
-isabelle build -D wasm-proofs -v Wasm-Proof
-```
-
-or
-
-```bash
-make
-```
-
-# Packaging and sharing local Isabelle heap
-
-To speed up the github action, you could choose to package your local Isabelle heap image. After building the whole project:
-
-```bash
-cd scripts
-./package-heap-cache.sh
-```
-The script pushes a docker image to `ghcr.io/fix-project`, and make sure the credentials are setup properly before running the script.
-
-Record the built docker image tag, and add
-```
-Isabelle-Cache: $IMAGETAG
-```
-to the end of your commit message.
-
-The generated heap images could only be used if the relative path of the project directory to your `$HOME` is `$HOME/fix-proof`. If that's not the case, include the relative path in your commit message as:
-
-```
-Workdir: $RELATIVEPATH
-```
+Execution theorems use WasmCert-Coq's finite reduction semantics. Tree execution
+states the original i32 size restrictions as explicit premises. The storage,
+program, coupon-storage, and externref backends remain abstract interfaces;
+their contracts and standard logical assumptions are documented in the
+correspondence audit.
