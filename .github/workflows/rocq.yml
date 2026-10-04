@@ -17,6 +17,9 @@ jobs:
       - uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: "5.3"
+          opam-repositories: |
+            rocq-released: https://rocq-prover.org/opam/released
+            default: https://opam.ocaml.org
       - name: Install WAT compiler
         run: sudo apt-get update && sudo apt-get install -y wabt
       - name: Install pinned WasmCert-Coq and Rocq dependencies

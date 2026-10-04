@@ -17,6 +17,7 @@ Install opam, Python 3.11 or newer, and WABT (`wat2wasm`), then run from this di
 
 ```sh
 git submodule update --init --recursive
+opam repo add rocq-released https://rocq-prover.org/opam/released
 opam pin add -yn coq-wasm wasm-proofs/WasmCert-Coq
 opam install . --deps-only -y
 opam exec -- make
