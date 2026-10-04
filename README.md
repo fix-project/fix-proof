@@ -13,7 +13,7 @@ closure, coupon judgements, guarded constructors, and Wasm execution.
 [CORRESPONDENCE.md](wasm-proofs/rocq/CORRESPONDENCE.md) explains the Isabelle-to-Rocq
 translations and assumptions.
 
-Install opam, Python 3, and WABT (`wat2wasm`), then run from this directory:
+Install opam, Python 3.11 or newer, and WABT (`wat2wasm`), then run from this directory:
 
 ```sh
 git submodule update --init --recursive
@@ -41,6 +41,22 @@ declares Python 3 and WABT dependencies and runs `make check` when installed
 with `--with-test`; it also checks freshness before the package build in that
 mode. On systems without a declared WABT package mapping, install `wat2wasm`
 manually. This package checks the repository's proofs in place.
+
+Kernel checks cache successful dependency validation separately from project
+validation in `wasm-proofs/rocq/.rocq-check-cache`. Cache keys hash every loaded
+compiled library, its resolved path, the checker/runtime binaries, Rocq version,
+load-path flags, and checking script. A project-only change reuses validation
+of unchanged dependencies; an unchanged build skips kernel rechecking entirely.
+Failed or interrupted checks do not create a successful cache entry.
+
+Use `make -j4 check CHECK_JOBS=4` to compile and kernel-check in parallel.
+`-j4` controls compilation; `CHECK_JOBS` controls checker processes (default 1).
+Each checker validates one library and loads its dependencies without
+rechecking; the stage is cached only after every assigned library passes. More
+workers use more memory and may not always be faster. `make check-full` forces
+both stages to recheck, and `make clean` removes the local validation cache.
+The cache records prior validation; it is not a substitute for checking
+artifacts from an untrusted cache source.
 
 Execution theorems use WasmCert-Coq's finite reduction semantics. Tree execution
 states the original i32 size restrictions as explicit premises. The storage,

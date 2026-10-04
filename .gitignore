@@ -8,3 +8,4 @@ _opam/
 wasm-proofs/rocq/CoqMakefile
 wasm-proofs/rocq/CoqMakefile.conf
 wasm-proofs/rocq/.CoqMakefile.d
+wasm-proofs/rocq/.rocq-check-cache/

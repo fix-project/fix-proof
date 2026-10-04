@@ -23,5 +23,12 @@ jobs:
         run: |
           opam pin add -yn coq-wasm wasm-proofs/WasmCert-Coq
           opam install . --deps-only -y
+      - name: Restore kernel-check cache
+        uses: actions/cache@v4
+        with:
+          path: wasm-proofs/rocq/.rocq-check-cache
+          key: ${{ runner.os }}-rocq-check-v1-${{ hashFiles('fix-proof.opam', 'scripts/check-rocq.py', 'wasm-proofs/rocq/_CoqProject', 'wasm-proofs/rocq/*.v', 'wasm-proofs/WasmCert-Coq/**/*.v') }}
+          restore-keys: |
+            ${{ runner.os }}-rocq-check-v1-
       - name: Compile and check the Rocq modules
-        run: opam exec -- make check
+        run: opam exec -- make -j2 check CHECK_JOBS=2

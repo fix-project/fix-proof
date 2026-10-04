@@ -1,6 +1,6 @@
-.PHONY: all check check-generated clean
+.PHONY: all check check-full check-generated clean
 
-MODULES := $(patsubst %.v,FixProof.%,$(filter %.v,$(shell cat _CoqProject)))
+CHECK_JOBS ?= 1
 
 all: Init.v CoqMakefile
 	$(MAKE) -f CoqMakefile all
@@ -17,7 +17,12 @@ check-generated:
 # Check committed generated input before the build can regenerate it.
 check: check-generated
 	$(MAKE) all
-	rocq check -silent -Q . FixProof $(MODULES)
+	python3 ../../scripts/check-rocq.py --jobs $(CHECK_JOBS)
+
+check-full: check-generated
+	$(MAKE) all
+	python3 ../../scripts/check-rocq.py --force --jobs $(CHECK_JOBS)
 
 clean: CoqMakefile
 	$(MAKE) -f CoqMakefile clean
+	rm -rf .rocq-check-cache

@@ -4,6 +4,9 @@ The Isabelle proof development has been replaced by Rocq, including the
 Wasm execution and coupon soundness proofs. The default build compiles the
 35 modules below; `make check` additionally checks binary freshness and every
 module with `rocq check`. CI uses this same check.
+Successful validation is cached by compiled-library and checker content hashes,
+with dependency and project results kept separately. `make check-full` forces
+validation of both stages; `CHECK_JOBS` controls parallel checker processes.
 
 The dependency is WasmCert/WasmCert-Coq at commit
 `5e6df8d60c94aa5dbeff633f5eb48caa6c64c225` (package version 2.2.1).
